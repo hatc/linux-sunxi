@@ -3268,7 +3268,6 @@ static struct sw_udc sw_udc = {
 };
 
 int sw_usb_device_enable(void)
-#ifdef CONFIG_USB_SW_SUNXI_USB0_OTG
 {
 	struct platform_device *pdev = g_udc_pdev;
 	struct sw_udc  	*udc    = &sw_udc;
@@ -3334,16 +3333,9 @@ err:
 
     return retval;
 }
-#else
-{
-	DMSG_PANIC("sw_usb_device_enable called without CONFIG_USB_SW_SUNXI_USB0_OTG define\n");
-	return -1;
-}
-#endif /* CONFIG_USB_SW_SUNXI_USB0_OTG */
 EXPORT_SYMBOL(sw_usb_device_enable);
 
 int sw_usb_device_disable(void)
-#ifdef CONFIG_USB_SW_SUNXI_USB0_OTG
 {
 	struct platform_device *pdev = g_udc_pdev;
 	struct sw_udc *udc 	= NULL;
@@ -3392,12 +3384,6 @@ int sw_usb_device_disable(void)
 
 	return 0;
 }
-#else
-{
-	DMSG_PANIC("sw_usb_device_disable called without CONFIG_USB_SW_SUNXI_USB0_OTG define\n");
-	return -1;
-}
-#endif /* CONFIG_USB_SW_SUNXI_USB0_OTG */
 EXPORT_SYMBOL(sw_usb_device_disable);
 
 /*
@@ -3418,10 +3404,9 @@ EXPORT_SYMBOL(sw_usb_device_disable);
 *
 *******************************************************************************
 */
-#ifdef CONFIG_USB_SW_SUNXI_USB0_OTG
 static int sw_udc_probe_otg(struct platform_device *pdev)
 {
-	struct sw_udc *udc = &sw_udc;
+	struct sw_udc  	*udc = &sw_udc;
 
 	g_udc_pdev = pdev;
 
@@ -3438,7 +3423,6 @@ static int sw_udc_probe_otg(struct platform_device *pdev)
 
     return usb_add_gadget_udc(&pdev->dev, &udc->gadget);
 }
-#endif
 
 /*
 *******************************************************************************
@@ -3458,7 +3442,6 @@ static int sw_udc_probe_otg(struct platform_device *pdev)
 *
 *******************************************************************************
 */
-#ifdef CONFIG_USB_SW_SUNXI_USB0_OTG
 static int sw_udc_remove_otg(struct platform_device *pdev)
 {
 	struct sw_udc *udc 	= NULL;
@@ -3473,7 +3456,6 @@ static int sw_udc_remove_otg(struct platform_device *pdev)
 	usb_del_gadget_udc(&udc->gadget);
 	return 0;
 }
-#endif
 
 /*
 *******************************************************************************
