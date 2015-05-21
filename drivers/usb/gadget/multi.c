@@ -12,26 +12,22 @@
  * (at your option) any later version.
  */
 
-
 #include <linux/kernel.h>
 #include <linux/utsname.h>
 #include <linux/module.h>
 
-
-#if defined USB_ETH_RNDIS
-#  undef USB_ETH_RNDIS
+#ifdef USB_ETH_RNDIS
+#undef USB_ETH_RNDIS
 #endif
-#ifdef CONFIG_USB_G_MULTI_RNDIS
-#  define USB_ETH_RNDIS y
-#endif
+#define USB_ETH_RNDIS y /* USB_ETH_RNDIS defined just for u_ether.h */
+#include "u_ether.h"
 
-
-#define DRIVER_DESC		"Multifunction Composite Gadget"
+#define DRIVER_DESC "Pico Composite Gadget"
+#define PICO_DRIVER_VERSION "0.1.0 pre-alpha"
 
 MODULE_DESCRIPTION(DRIVER_DESC);
-MODULE_AUTHOR("Michal Nazarewicz");
+MODULE_AUTHOR("Michal Nazarewicz and Ko");
 MODULE_LICENSE("GPL");
-
 
 /***************************** All the files... *****************************/
 
@@ -48,85 +44,73 @@ MODULE_LICENSE("GPL");
 #include "config.c"
 #include "epautoconf.c"
 
+#include "f_rndis.c"
+#include "rndis.c"
 #include "f_mass_storage.c"
 
-#include "u_serial.c"
-#include "f_acm.c"
-
-#include "f_ecm.c"
-#include "f_subset.c"
-#ifdef USB_ETH_RNDIS
-#  include "f_rndis.c"
-#  include "rndis.c"
-#endif
-#include "u_ether.c"
-
-
+#include "u_ether.c" /* u_ether.c redefine *DBG macros, so include it after all */
 
 /***************************** Device Descriptor ****************************/
 
 #define MULTI_VENDOR_NUM	0x1d6b	/* Linux Foundation */
-#define MULTI_PRODUCT_NUM	0x0104	/* Multifunction Composite Gadget */
-
+/* #define MULTI_PRODUCT_NUM	0x0104	Multifunction Composite Gadget */
+#define MULTI_PRODUCT_NUM	0x0109	/* unknown composite device ^_^ */
 
 enum {
 	__MULTI_NO_CONFIG,
-#ifdef CONFIG_USB_G_MULTI_RNDIS
-	MULTI_RNDIS_CONFIG_NUM,
-#endif
-#ifdef CONFIG_USB_G_MULTI_CDC
-	MULTI_CDC_CONFIG_NUM,
-#endif
+	MULTI_RNDIS_CONFIG_NUM, /* usb_configuration.bConfigurationValue : should be just a unique per usb_composite_dev, not zero, unsigned char value */
 };
-
 
 static struct usb_device_descriptor device_desc = {
-	.bLength =		sizeof device_desc,
-	.bDescriptorType =	USB_DT_DEVICE,
+	.bLength         = sizeof device_desc,
+	.bDescriptorType = USB_DT_DEVICE,
 
-	.bcdUSB =		cpu_to_le16(0x0200),
+	.bcdUSB          = cpu_to_le16(0x0200),
 
-	.bDeviceClass =		USB_CLASS_MISC /* 0xEF */,
-	.bDeviceSubClass =	2,
-	.bDeviceProtocol =	1,
+	.bDeviceClass    = 0xEF /* USB_CLASS_MISC */,
+	.bDeviceSubClass = 2,
+	.bDeviceProtocol = 1,
 
-	/* Vendor and product id can be overridden by module parameters.  */
-	.idVendor =		cpu_to_le16(MULTI_VENDOR_NUM),
-	.idProduct =		cpu_to_le16(MULTI_PRODUCT_NUM),
+	/* Vendor and product id can be overridden by module parameters. */
+	.idVendor        = cpu_to_le16(MULTI_VENDOR_NUM),
+	.idProduct       = cpu_to_le16(MULTI_PRODUCT_NUM),
+	
+	.bNumConfigurations = 1,
 };
-
 
 static const struct usb_descriptor_header *otg_desc[] = {
 	(struct usb_descriptor_header *) &(struct usb_otg_descriptor){
-		.bLength =		sizeof(struct usb_otg_descriptor),
-		.bDescriptorType =	USB_DT_OTG,
+		.bLength         = sizeof(struct usb_otg_descriptor),
+		.bDescriptorType = USB_DT_OTG,
 
 		/*
 		 * REVISIT SRP-only hardware is possible, although
 		 * it would not be called "OTG" ...
 		 */
-		.bmAttributes =		USB_OTG_SRP | USB_OTG_HNP,
+		.bmAttributes    = USB_OTG_SRP | USB_OTG_HNP,
 	},
 	NULL,
 };
 
-
 enum {
-#ifdef CONFIG_USB_G_MULTI_RNDIS
 	MULTI_STRING_RNDIS_CONFIG_IDX,
-#endif
-#ifdef CONFIG_USB_G_MULTI_CDC
-	MULTI_STRING_CDC_CONFIG_IDX,
-#endif
+	MULTI_STRING_OS_STRING_DESC_IDX, /* actual OS string descriptor must returns hack in composite_setup(), but keep this entry just in case */
+	MULTI_STRING_PRODUCT_IDX,
+	MULTI_STRING_MANUFACTURER_IDX
 };
 
+/* usb_string strings_dev[] = { [IDX].s = "IDX text", } - strings_dev[IDX].s = "IDX text" 
+ * i.e. IDX used as index in declared array */
+/* struct usb_string { u8 id; const char *s; },
+ * so strings_dev[] = { [MULTI_STRING_RNDIS_CONFIG_IDX].s = "Multifunction with RNDIS" }
+ * just define strings_dev[1] = { { .id = default(u8) == '\0', .s = "Multifunction with RNDIS" } }
+ * actual strings id will be allocated by usb_string_ids() call, BUT theirs array ids(IDX) will be the same */
+static char MULTI_STRINGS_DEV_MANUFACTURER[0x100];
 static struct usb_string strings_dev[] = {
-#ifdef CONFIG_USB_G_MULTI_RNDIS
-	[MULTI_STRING_RNDIS_CONFIG_IDX].s = "Multifunction with RNDIS",
-#endif
-#ifdef CONFIG_USB_G_MULTI_CDC
-	[MULTI_STRING_CDC_CONFIG_IDX].s   = "Multifunction with CDC ECM",
-#endif
+	[MULTI_STRING_RNDIS_CONFIG_IDX].s   = "Pico configuration with RNDIS and Mass Storage",
+	[MULTI_STRING_OS_STRING_DESC_IDX].s = "MSFT100\x06",
+	[MULTI_STRING_PRODUCT_IDX].s        = DRIVER_DESC,
+	[MULTI_STRING_MANUFACTURER_IDX].s   = MULTI_STRINGS_DEV_MANUFACTURER,
 	{  } /* end of list */
 };
 
@@ -138,9 +122,6 @@ static struct usb_gadget_strings *dev_strings[] = {
 	NULL,
 };
 
-
-
-
 /****************************** Configurations ******************************/
 
 static struct fsg_module_parameters fsg_mod_data = { .stall = 1 };
@@ -150,10 +131,7 @@ static struct fsg_common fsg_common;
 
 static u8 hostaddr[ETH_ALEN];
 
-
 /********** RNDIS **********/
-
-#ifdef USB_ETH_RNDIS
 
 static __init int rndis_do_config(struct usb_configuration *c)
 {
@@ -168,10 +146,6 @@ static __init int rndis_do_config(struct usb_configuration *c)
 	if (ret < 0)
 		return ret;
 
-	ret = acm_bind_config(c, 0);
-	if (ret < 0)
-		return ret;
-
 	ret = fsg_bind_config(c->cdev, c, &fsg_common);
 	if (ret < 0)
 		return ret;
@@ -182,86 +156,24 @@ static __init int rndis_do_config(struct usb_configuration *c)
 static int rndis_config_register(struct usb_composite_dev *cdev)
 {
 	static struct usb_configuration config = {
-		.bConfigurationValue	= MULTI_RNDIS_CONFIG_NUM,
-		.bmAttributes		= USB_CONFIG_ATT_SELFPOWER,
+		.bConfigurationValue = MULTI_RNDIS_CONFIG_NUM, /* 1 */
+		.bmAttributes        = USB_CONFIG_ATT_SELFPOWER,
 	};
-
+	
 	config.label          = strings_dev[MULTI_STRING_RNDIS_CONFIG_IDX].s;
+	/* usb_string id's already allocated with usb_string_ids_tab() */
 	config.iConfiguration = strings_dev[MULTI_STRING_RNDIS_CONFIG_IDX].id;
 
 	return usb_add_config(cdev, &config, rndis_do_config);
 }
 
-#else
-
-static int rndis_config_register(struct usb_composite_dev *cdev)
-{
-	return 0;
-}
-
-#endif
-
-
-/********** CDC ECM **********/
-
-#ifdef CONFIG_USB_G_MULTI_CDC
-
-static __init int cdc_do_config(struct usb_configuration *c)
-{
-	int ret;
-
-	if (gadget_is_otg(c->cdev->gadget)) {
-		c->descriptors = otg_desc;
-		c->bmAttributes |= USB_CONFIG_ATT_WAKEUP;
-	}
-
-	ret = ecm_bind_config(c, hostaddr);
-	if (ret < 0)
-		return ret;
-
-	ret = acm_bind_config(c, 0);
-	if (ret < 0)
-		return ret;
-
-	ret = fsg_bind_config(c->cdev, c, &fsg_common);
-	if (ret < 0)
-		return ret;
-
-	return 0;
-}
-
-static int cdc_config_register(struct usb_composite_dev *cdev)
-{
-	static struct usb_configuration config = {
-		.bConfigurationValue	= MULTI_CDC_CONFIG_NUM,
-		.bmAttributes		= USB_CONFIG_ATT_SELFPOWER,
-	};
-
-	config.label          = strings_dev[MULTI_STRING_CDC_CONFIG_IDX].s;
-	config.iConfiguration = strings_dev[MULTI_STRING_CDC_CONFIG_IDX].id;
-
-	return usb_add_config(cdev, &config, cdc_do_config);
-}
-
-#else
-
-static int cdc_config_register(struct usb_composite_dev *cdev)
-{
-	return 0;
-}
-
-#endif
-
-
-
 /****************************** Gadget Bind ******************************/
-
 
 static int __ref multi_bind(struct usb_composite_dev *cdev)
 {
 	struct usb_gadget *gadget = cdev->gadget;
 	int status, gcnum;
-
+	
 	if (!can_support_ecm(cdev->gadget)) {
 		dev_err(&gadget->dev, "controller '%s' not usable\n",
 		        gadget->name);
@@ -273,18 +185,14 @@ static int __ref multi_bind(struct usb_composite_dev *cdev)
 	if (status < 0)
 		return status;
 
-	/* set up serial link layer */
-	status = gserial_setup(cdev->gadget, 1);
-	if (status < 0)
-		goto fail0;
-
 	/* set up mass storage function */
 	{
 		void *retp;
 		retp = fsg_common_from_params(&fsg_common, cdev, &fsg_mod_data);
 		if (IS_ERR(retp)) {
 			status = PTR_ERR(retp);
-			goto fail1;
+			gether_cleanup();
+			return status;
 		}
 	}
 
@@ -293,61 +201,72 @@ static int __ref multi_bind(struct usb_composite_dev *cdev)
 	if (gcnum >= 0) {
 		device_desc.bcdDevice = cpu_to_le16(0x0300 | gcnum);
 	} else {
-		WARNING(cdev, "controller '%s' not recognized\n", gadget->name);
+	/*
+	 * void dev_warn(const struct device *dev, const char *fmt, ...);
+	 * 
+	 * address-of(&) operator has lower precedence than member selection(->), so
+	 * `&gadget->dev` or `&(d)->gadget->dev` it's &(gadget->dev) - address-of dev member
+	 * 
+	 * struct usb_gadget {
+	 *      ...
+	 *      struct device                   dev;
+	 *      ...
+	 * }
+	 */ 
+		dev_warn(&gadget->dev, "controller '%s' not recognized\n", gadget->name);
 		device_desc.bcdDevice = cpu_to_le16(0x0300 | 0x0099);
 	}
-
+	
 	/* allocate string IDs */
 	status = usb_string_ids_tab(cdev, strings_dev);
-	if (unlikely(status < 0))
-		goto fail2;
-
-	/* register configurations */
+	if (unlikely(status < 0)) {
+		fsg_common_put(&fsg_common);
+		gether_cleanup();
+		return status;
+	}
+	
+	strings_dev[MULTI_STRING_OS_STRING_DESC_IDX].id = 0xee;
+	/* device descriptor strings: product, manufacturer
+	 * iManufacturer : Specifies a device-defined index of the string descriptor that provides a string that contains the name of the manufacturer of this device.
+	 * iProduct      : Specifies a device-defined index of the string descriptor that provides a string that contains a description of the device. */
+	device_desc.iProduct = strings_dev[MULTI_STRING_PRODUCT_IDX].id;
+	snprintf(MULTI_STRINGS_DEV_MANUFACTURER, sizeof(MULTI_STRINGS_DEV_MANUFACTURER) / sizeof(MULTI_STRINGS_DEV_MANUFACTURER[0]),
+		"Pico and Ko with %s %s",
+		init_utsname()->sysname, init_utsname()->release);
+	device_desc.iManufacturer = strings_dev[MULTI_STRING_RNDIS_CONFIG_IDX].id;
+	
+	/* register configuration */
 	status = rndis_config_register(cdev);
-	if (unlikely(status < 0))
-		goto fail2;
-
-	status = cdc_config_register(cdev);
-	if (unlikely(status < 0))
-		goto fail2;
-
+	if (unlikely(status < 0)) {
+		fsg_common_put(&fsg_common);
+		gether_cleanup();
+		return status;
+	}
+	
 	/* we're done */
-	dev_info(&gadget->dev, DRIVER_DESC "\n");
+	dev_info(&gadget->dev, "%s, version: " PICO_DRIVER_VERSION "\n", DRIVER_DESC);
 	fsg_common_put(&fsg_common);
 	return 0;
-
-
-	/* error recovery */
-fail2:
-	fsg_common_put(&fsg_common);
-fail1:
-	gserial_cleanup();
-fail0:
-	gether_cleanup();
-	return status;
 }
 
 static int __exit multi_unbind(struct usb_composite_dev *cdev)
 {
-	gserial_cleanup();
 	gether_cleanup();
 	return 0;
 }
 
-
 /****************************** Some noise ******************************/
-
 
 static struct usb_composite_driver multi_driver = {
 	.name		= "g_multi",
 	.dev		= &device_desc,
 	.strings	= dev_strings,
-	.max_speed	= USB_SPEED_HIGH,
+	.max_speed	= USB_SPEED_SUPER,
 	.unbind		= __exit_p(multi_unbind),
-	.iProduct	= DRIVER_DESC,
+	/* @needs_serial: set to 1 if the gadget needs userspace to provide a serial number.
+	 * If one is not provided, warning will be printed. */
 	.needs_serial	= 1,
 };
-
 
 static int __init multi_init(void)
 {

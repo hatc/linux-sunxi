@@ -852,52 +852,29 @@ repeat:
 	}
 }
 
-/* OS String Descriptor Request Format 
- * wIndex 
-IN. This field specifies the descriptor’s language ID.
-!!! It must be set to 0 for OS string descriptors. */
-/* usb_gadget_get_string (struct usb_gadget_strings *table, int id, u8 *buf)
+static int lookup_string(
+	struct usb_gadget_strings	**sp,
+	void				*buf,
+	u16				language,
+	int				id
+)
 {
-	...
-	// string descriptors have length, tag, then UTF16-LE text
-	len = min ((size_t) 126, strlen (s->s));
-	len = utf8s_to_utf16s(s->s, len, UTF16_LITTLE_ENDIAN,
-			(wchar_t *) &buf[2], 126);
-	if (len < 0)
-		return -EINVAL;
-	buf [0] = (len + 1) * 2;
-	buf [1] = USB_DT_STRING;
-	return buf[0];
-} 
-hmph... using usb_gadget_get_string doesn't look as good idea for copy OS string descriptor ^_^ */
-static int lookup_string(struct usb_gadget_strings **sp, void *buf, u16 language, int id)
-{
-	struct usb_gadget_strings *s, **it;
-	int                       value;
-	
-	it = sp;
-	/* first try to find exact match */
-	while (*it) {
-		s = *it++;
+	struct usb_gadget_strings	*s;
+	int				value;
+
+	while (*sp) {
+		s = *sp++;
 		if (s->language != language)
 			continue;
 		value = usb_gadget_get_string(s, id, buf);
 		if (value > 0)
 			return value;
 	}
-	/* then try to find match in any lang - no need to use this function
-	it = sp;
-	while (*it) {
-		s = *it++;
-		value = usb_gadget_get_string(s, id, buf);
-		if (value > 0)
-			return value;
-	} */
 	return -EINVAL;
 }
 
-/* value = get_string(cdev,                           req->buf,  w_index,      w_value & 0xff); */
-static int get_string(struct usb_composite_dev *cdev, void *buf, u16 language, int id)
+static int get_string(struct usb_composite_dev *cdev,
+		void *buf, u16 language, int id)
 {
 	struct usb_configuration	*c;
 	struct usb_function		*f;
@@ -1084,117 +1061,6 @@ static void composite_setup_complete(struct usb_ep *ep, struct usb_request *req)
 				req->status, req->actual, req->length);
 }
 
-/* struct usb_ctrlrequest - SETUP data for a USB device control request
- * @bRequestType: matches the USB bmRequestType field
- * @bRequest: matches the USB bRequest field
- * @wValue: matches the USB wValue field (le16 byte order)
- * @wIndex: matches the USB wIndex field (le16 byte order)
- * @wLength: matches the USB wLength field (le16 byte order)
- * 
- * This structure is used to send control requests to a USB device.
- * It matches the different fields of the USB 2.0 Spec section 9.3, table 9-2.
- * See the USB spec for a fuller description of the different fields, and what they are used for.
- * 
- * Note that the driver for any interface can issue control requests.
- * For most devices, interfaces don't coordinate with each other, so
- * such requests may be made at any time. */
- /* bmRequestType 1 byte, Bitmap:
-  D7: Data transfer direction
-   0 = Host-to-device
-   1 = Device-to-host
-  D6...5: Type
-   0 = Standard
-   1 = Class
-   2 = Vendor
-   3 = Reserved
-  D4...0: Recipient
-   0 = Device
-   1 = Interface
-   2 = Endpoint
-   3 = Other
-   4...31 = Reserved 
-   * 
-   bRequest 1 byte, Value:
-   bMS_VendorCode
-   */
-/* b_vendor_code: bMS_VendorCode part of the OS string
-   ((ctrl->bRequestType & USB_TYPE_VENDOR) && ctrl->bRequest == b_vendor_code)
-   * 
- USB_REQ_GET_DESCRIPTOR:
-  if (ctrl->bRequestType != USB_DIR_IN) // USB_DIR_IN 0x80
-    goto unknown;
- so, we could just use USB_REQ_GET_DESCRIPTOR(0x06) as MULTI_BMS_VENDORCODE */
-/* !!! Note: On Windows 8 and Windows Server 2012, if a USB 3.0 composite device 
-specifies ​bMS_VendorCode​ as 0x00, the system fails to enumerate the device. */
-#define MULTI_BMS_VENDORCODE '\x06'
-static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl) {
-	struct usb_composite_dev *cdev = get_gadget_data(gadget);
-	struct usb_request       *req = cdev->req;
-	
-	int value;
-	u8  *buf;
-	u8  fsg_interface_id;
-	u16 w_index  = le16_to_cpu(ctrl->wIndex);
-	u16 w_length = le16_to_cpu(ctrl->wLength);
-	
-	req->zero     = 0;
-	req->length   = 0;
-	req->context  = cdev;
-	req->complete = composite_setup_complete;
-	
-	/* check w_index(0x04) && bRequestType(0000 - Device) for Extended Compat ID OS Descriptor */
-	if (USB_RECIP_DEVICE == (ctrl->bRequestType & USB_RECIP_MASK) && 0x04 == w_index) {
-		if (w_length < 0x10)
-			WARNING(cdev, "[pico]Extended compat ID OS feature descriptor request wLength too small: %d\n", w_length);
-		
-		value = -EINVAL;
-		buf = req->buf;
-		if (w_length > 0) {
-			u8 os_descriptor[] = { 0x40, 0x00, 0x00, 0x00, 0x00, 0x01, 0x04, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-				0x00,
-				0x01,
-				0x52, 0x4E, 0x44, 0x49, 0x53, 0x00, 0x00, 0x00,
-				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-				0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-				0x02,
-				0x01,
-				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-				0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-			
-			/* bFirstInterfaceNumber for RNDIS must be 0, Mass Storage Interface/Function will be appended to tail,
-			 * i.e. bFirstInterfaceNumber for Mass Storage == (cdev->config->next_interface_id - 1) */
-			fsg_interface_id = cdev->config->next_interface_id;
-			if (fsg_interface_id > 0) {
-				fsg_interface_id = fsg_interface_id - 1;
-				os_descriptor[0x10 + 0x18] = fsg_interface_id;
-			} else
-				WARNING(cdev, "[pico]strange next_interface_id: %d\n", fsg_interface_id);
-			DBG(cdev, "[pico]using %d as fsg_interface_id\n", os_descriptor[0x10 + 0x18]);
-			
-			memset(buf, 0, w_length);
-			value = min((u16)os_descriptor[0], w_length);
-			memcpy(buf, os_descriptor, value);
-		}
-	} else
-		/* If a particular OS feature descriptor is not present, the device issues a Request Error or a Stall. */
-		value = -EOPNOTSUPP;
-	
-	if (value >= 0) {
-		req->zero    = value < w_length;
-		req->length  = value;
-		req->context = cdev;
-		
-		value = usb_ep_queue(gadget->ep0, req, GFP_ATOMIC);
-		if (value < 0) {
-			DBG(cdev, "ep_queue --> %d\n", value);
-			req->status = 0;
-			composite_setup_complete(gadget->ep0, req); /* function just prints debug info ... */
-		}
-	}
-	return value;
-}
-
 /*
  * The setup() callback implements all the ep0 functionality that's
  * not handled lower down, in hardware or the hardware driver(like
@@ -1229,7 +1095,7 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 
 	/* we handle all standard USB descriptors */
 	case USB_REQ_GET_DESCRIPTOR:
-		if (ctrl->bRequestType != USB_DIR_IN) /* USB_DIR_IN 0x80 : To retrieve a USB string descriptor, bmRequestType​ should be set to 10000000B (0x80). */
+		if (ctrl->bRequestType != USB_DIR_IN)
 			goto unknown;
 		switch (w_value >> 8) {
 
@@ -1268,31 +1134,9 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 			if (value >= 0)
 				value = min(w_length, (u16) value);
 			break;
-		case USB_DT_STRING: /* 0x03 - retrieve a string descriptor */
-			if (0xee == (w_value & 0xff)) {
-				DBG(cdev, "[pico]seems as OS string descriptor request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
-					ctrl->bRequestType, ctrl->bRequest,
-					w_value, w_index, w_length);
-				
-				if (w_length >= 0x12) {
-					u8 *buf = req->buf;
-					/* string descriptors have length, tag, then UTF16-LE text - i.e. no terminating null, coz it's not needed - length as first byte */
-					/* OS string descriptors have length, tag, then signature in UTF16-LE text, bMS_VendorCode and '\x00' */
-					buf[0] = 0x12;
-					buf[1] = 0x03;
-					memcpy(&buf[2], "\x4D\x00\x53\x00\x46\x00\x54\x00\x31\x00\x30\x00\x30\x00", 14);
-					buf[0x10] = MULTI_BMS_VENDORCODE;
-					buf[0x11] = 0;
-					value = 0x12;
-				} else {
-					WARNING(cdev, "[pico]OS string descriptor request wLength too small: %d\n", w_length);
-					value = -EINVAL;
-				}
-			} else {
-				value = get_string(cdev, req->buf,
-					w_index, w_value & 0xff); /* The low byte contains the descriptor’s string index */
-			}
-			
+		case USB_DT_STRING:
+			value = get_string(cdev, req->buf,
+					w_index, w_value & 0xff);
 			if (value >= 0)
 				value = min(w_length, (u16) value);
 			break;
@@ -1426,14 +1270,6 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		break;
 	default:
 unknown:
-		if ((ctrl->bRequestType & USB_TYPE_VENDOR) && ctrl->bRequest == MULTI_BMS_VENDORCODE) {
-			/* loglevel=8
-			 * this will cause dev_dbg() messages, which are logged at level "<7>", to be reported to the console */
-			DBG(cdev, "[pico]seems as OS feature descriptor request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
-				ctrl->bRequestType, ctrl->bRequest,
-				w_value, w_index, w_length);
-			return __os_descriptors_handling(gadget, ctrl);
-		}
 		VDBG(cdev,
 			"non-core control req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
@@ -1476,8 +1312,8 @@ unknown:
 		}
 
 		goto done;
-	} /* switch (ctrl->bRequest) { ... } */
-	
+	}
+
 	/* respond with data transfer before status phase? */
 	if (value >= 0 && value != USB_GADGET_DELAYED_STATUS) {
 		req->length = value;
@@ -1498,26 +1334,6 @@ done:
 	/* device either stalls (value < 0) or reports success */
 	return value;
 }
-
-#if 0
-static int composite_ep0_queue(struct usb_composite_dev *cdev,
-		struct usb_request *req, gfp_t gfp_flags)
-{
-	int ret;
-
-	ret = usb_ep_queue(cdev->gadget->ep0, req, gfp_flags);
-	if (ret == 0) {
-		if (cdev->req == req)
-			cdev->setup_pending = true;
-		else if (cdev->os_desc_req == req)
-			cdev->os_desc_pending = true;
-		else
-			WARN(1, "unknown request %p\n", req);
-	}
-
-	return ret;
-}
-#endif
 
 static void composite_disconnect(struct usb_gadget *gadget)
 {
@@ -1549,9 +1365,10 @@ static ssize_t composite_show_suspended(struct device *dev,
 
 static DEVICE_ATTR(suspended, 0444, composite_show_suspended, NULL);
 
-static void composite_unbind(struct usb_gadget *gadget)
+static void
+composite_unbind(struct usb_gadget *gadget)
 {
-	struct usb_composite_dev *cdev = get_gadget_data(gadget);
+	struct usb_composite_dev	*cdev = get_gadget_data(gadget);
 
 	/* composite_disconnect() must already have been called
 	 * by the underlying peripheral controller driver!
@@ -1570,7 +1387,6 @@ static void composite_unbind(struct usb_gadget *gadget)
 	if (composite->unbind)
 		composite->unbind(cdev);
 
-	/* composite_dev_cleanup: usb_ep_free_request(cdev->gadget->ep0, cdev->os_desc_req); */
 	if (cdev->req) {
 		kfree(cdev->req->buf);
 		usb_ep_free_request(gadget->ep0, cdev->req);
