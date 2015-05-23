@@ -52,6 +52,7 @@
 #include "usbstring.c"
 #include "config.c"
 #include "epautoconf.c"
+
 #include "f_mass_storage.c"
 
 /*-------------------------------------------------------------------------*/

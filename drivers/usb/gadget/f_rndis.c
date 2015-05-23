@@ -25,7 +25,6 @@
 #include "u_ether.h"
 #include "rndis.h"
 
-
 /*
  * This function is an RNDIS Ethernet port -- a Microsoft protocol that's
  * been promoted instead of the standard CDC Ethernet.  The published RNDIS
@@ -183,27 +182,36 @@ rndis_iad_descriptor = {
 
 /* full speed support: */
 
+#ifdef USE__CLAIM_EP_BY_NAME
+#define MULTI_F_RNDIS_FS_NOTIFY_EP_NAME "ep5-int"
+#endif
 static struct usb_endpoint_descriptor fs_notify_desc = {
-	.bLength =		USB_DT_ENDPOINT_SIZE,
-	.bDescriptorType =	USB_DT_ENDPOINT,
+	.bLength          = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType  = USB_DT_ENDPOINT,
 
-	.bEndpointAddress =	USB_DIR_IN,
-	.bmAttributes =		USB_ENDPOINT_XFER_INT,
-	.wMaxPacketSize =	cpu_to_le16(STATUS_BYTECOUNT),
-	.bInterval =		1 << LOG2_STATUS_INTERVAL_MSEC,
+	.bEndpointAddress = USB_DIR_IN,
+	.bmAttributes     = USB_ENDPOINT_XFER_INT,
+	.wMaxPacketSize   = cpu_to_le16(STATUS_BYTECOUNT),
+	.bInterval        = 1 << LOG2_STATUS_INTERVAL_MSEC,
 };
 
+#ifdef USE__CLAIM_EP_BY_NAME
+#define MULTI_F_RNDIS_FS_IN_EP_NAME "ep3-bulk"
+#endif
 static struct usb_endpoint_descriptor fs_in_desc = {
 	.bLength =		USB_DT_ENDPOINT_SIZE,
-	.bDescriptorType =	USB_DT_ENDPOINT,
+	.bDescriptorType  = USB_DT_ENDPOINT,
 
 	.bEndpointAddress =	USB_DIR_IN,
 	.bmAttributes =		USB_ENDPOINT_XFER_BULK,
 };
 
+#ifdef USE__CLAIM_EP_BY_NAME
+#define MULTI_F_RNDIS_FS_OUT_EP_NAME "ep4-bulk"
+#endif
 static struct usb_endpoint_descriptor fs_out_desc = {
 	.bLength =		USB_DT_ENDPOINT_SIZE,
-	.bDescriptorType =	USB_DT_ENDPOINT,
+	.bDescriptorType  = USB_DT_ENDPOINT,
 
 	.bEndpointAddress =	USB_DIR_OUT,
 	.bmAttributes =		USB_ENDPOINT_XFER_BULK,
@@ -685,15 +693,23 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	rndis_union_desc.bSlaveInterface0 = status;
 
 	status = -ENODEV;
-
+	
 	/* allocate instance-specific endpoints */
+#ifdef USE__CLAIM_EP_BY_NAME
+	ep = __claim_ep_by_name(cdev->gadget, &fs_in_desc, MULTI_F_RNDIS_FS_IN_EP_NAME, cdev);
+#else
 	ep = usb_ep_autoconfig(cdev->gadget, &fs_in_desc);
+#endif
 	if (!ep)
 		goto fail;
 	rndis->port.in_ep = ep;
 	ep->driver_data = cdev;	/* claim */
 
+#ifdef USE__CLAIM_EP_BY_NAME
+	ep = __claim_ep_by_name(cdev->gadget, &fs_out_desc, MULTI_F_RNDIS_FS_OUT_EP_NAME, cdev);
+#else
 	ep = usb_ep_autoconfig(cdev->gadget, &fs_out_desc);
+#endif
 	if (!ep)
 		goto fail;
 	rndis->port.out_ep = ep;
@@ -703,7 +719,11 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	 * optional.  We don't treat it that way though!  It's simpler,
 	 * and some newer profiles don't treat it as optional.
 	 */
+#ifdef USE__CLAIM_EP_BY_NAME
+	ep = __claim_ep_by_name(cdev->gadget, &fs_notify_desc, MULTI_F_RNDIS_FS_NOTIFY_EP_NAME, cdev);
+#else
 	ep = usb_ep_autoconfig(cdev->gadget, &fs_notify_desc);
+#endif
 	if (!ep)
 		goto fail;
 	rndis->notify = ep;
@@ -712,6 +732,9 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	status = -ENOMEM;
 
 	/* allocate notification request and buffer */
+#ifdef DEBUG
+	printk("rndis_bind(): usb_ep_alloc_request(ep(0x%p))\n", ep);
+#endif
 	rndis->notify_req = usb_ep_alloc_request(ep, GFP_KERNEL);
 	if (!rndis->notify_req)
 		goto fail;

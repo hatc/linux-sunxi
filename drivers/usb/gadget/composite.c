@@ -234,6 +234,10 @@ int usb_add_function(struct usb_configuration *config,
 	 * as full speed ... it's the function drivers that will need
 	 * to avoid bulk and ISO transfers.
 	 */
+	/* gadget_is_dualspeed() && gadget_is_superspeed() should return 0, coz
+	 * include/generated/autoconf.h doesn't contains CONFIG_USB_GADGET_DUALSPEED || CONFIG_USB_GADGET_SUPERSPEED,
+	 * so, function hs_descriptors && ss_descriptors should be NULL
+	 * and config->fullspeed = true; */
 	if (!config->fullspeed && function->descriptors)
 		config->fullspeed = true;
 	if (!config->highspeed && function->hs_descriptors)
@@ -414,7 +418,7 @@ static int config_desc(struct usb_composite_dev *cdev, unsigned w_value)
 	struct usb_gadget		*gadget = cdev->gadget;
 	struct usb_configuration	*c;
 	u8				type = w_value >> 8;
-	enum usb_device_speed		speed = USB_SPEED_UNKNOWN;
+	enum usb_device_speed c_speed, speed = USB_SPEED_UNKNOWN;
 
 	if (gadget->speed == USB_SPEED_SUPER)
 		speed = gadget->speed;
@@ -431,7 +435,12 @@ static int config_desc(struct usb_composite_dev *cdev, unsigned w_value)
 
 	/* This is a lookup by config *INDEX* */
 	w_value &= 0xff;
+	/*  #define list_for_each_entry(pos, head, member)          \
+	 for (pos = list_entry((head)->next, typeof(*pos), member); \
+	  &pos->member != (head);                                   \
+	  pos = list_entry(pos->member.next, typeof(*pos), member)) */
 	list_for_each_entry(c, &cdev->configs, list) {
+		c_speed = speed;
 		/* ignore configs that won't work at this speed */
 		switch (speed) {
 		case USB_SPEED_SUPER:
@@ -443,12 +452,15 @@ static int config_desc(struct usb_composite_dev *cdev, unsigned w_value)
 				continue;
 			break;
 		default:
+			/* usb_configuration.fullspeed should be set by usb_add_function */
 			if (!c->fullspeed)
 				continue;
+			else
+				c_speed = USB_SPEED_FULL;
 		}
 
 		if (w_value == 0)
-			return config_buf(c, speed, cdev->req->buf, type);
+			return config_buf(c, c_speed, cdev->req->buf, type);
 		w_value--;
 	}
 	return -EINVAL;
@@ -1250,7 +1262,9 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 			value = min(w_length, (u16) sizeof cdev->desc);
 			memcpy(req->buf, &cdev->desc, value);
 			break;
-		case USB_DT_DEVICE_QUALIFIER:
+		case USB_DT_DEVICE_QUALIFIER: /* DEVICE_QUALIFIER */
+		/* If a full-speed only device (with a device descriptor version number equal to 0200H) 
+		 * receives a GetDescriptor() request for a device_qualifier, it must respond with a request error. */
 			if (!gadget_is_dualspeed(gadget) ||
 			    gadget->speed >= USB_SPEED_SUPER)
 				break;
@@ -1609,6 +1623,9 @@ static int composite_bind(struct usb_gadget *gadget)
 	INIT_LIST_HEAD(&cdev->configs);
 
 	/* preallocate control response and buffer */
+#ifdef DEBUG
+	printk("composite_bind(): usb_ep_alloc_request(ep(0x%p))\n", gadget->ep0);
+#endif
 	cdev->req = usb_ep_alloc_request(gadget->ep0, GFP_KERNEL);
 	if (!cdev->req)
 		goto fail;

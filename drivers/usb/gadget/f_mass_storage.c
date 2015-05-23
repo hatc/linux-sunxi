@@ -3007,15 +3007,23 @@ static int fsg_bind(struct usb_configuration *c, struct usb_function *f)
 		return i;
 	fsg_intf_desc.bInterfaceNumber = i;
 	fsg->interface_number = i;
-
+	
 	/* Find all the endpoints we will use */
+#ifdef USE__CLAIM_EP_BY_NAME
+	ep = __claim_ep_by_name(gadget, &fsg_fs_bulk_in_desc, MULTI_F_MASS_STORAGE_FSG_FS_BULK_IN_EP_NAME, fsg->common);
+#else
 	ep = usb_ep_autoconfig(gadget, &fsg_fs_bulk_in_desc);
+#endif
 	if (!ep)
 		goto autoconf_fail;
 	ep->driver_data = fsg->common;	/* claim the endpoint */
 	fsg->bulk_in = ep;
 
+#ifdef USE__CLAIM_EP_BY_NAME
+	ep = __claim_ep_by_name(gadget, &fsg_fs_bulk_out_desc, MULTI_F_MASS_STORAGE_FSG_FS_BULK_OUT_EP_NAME, fsg->common);
+#else
 	ep = usb_ep_autoconfig(gadget, &fsg_fs_bulk_out_desc);
+#endif
 	if (!ep)
 		goto autoconf_fail;
 	ep->driver_data = fsg->common;	/* claim the endpoint */

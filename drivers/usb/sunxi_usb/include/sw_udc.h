@@ -54,15 +54,75 @@ typedef struct sw_udc_ep {
 	__u32 					dma_transfer_len;	/* dma want transfer length */
 }sw_udc_ep_t;
 
-
+/* 5.5.3 Control Transfer Packet Size Constraints
+ * The allowable maximum control transfer data payload sizes
+ * for full-speed devices is 8, 16, 32, or 64 bytes;
+ * for high-speed devices is 64 bytes and for low-speed devices, it is 8 bytes
+ * A Setup packet is always eight bytes.
+ * A control pipe (including the Default Control Pipe) always uses its wMaxPacketSize value for data payloads.
+ * 
+ * All Host Controllers are required to have support for 8-, 16-, 32-, and 64-byte maximum data payload sizes
+ * for full-speed control endpoints, only 8-byte maximum data payload sizes for low-speed control endpoints,
+ * and only 64-byte maximum data payload size for high-speed control endpoints.
+ * 
+ * In order to determine the maximum packet size for the Default Control Pipe, the USB System Software
+ * reads the device descriptor. The host will read the first eight bytes of the device descriptor.
+ * The device always responds with at least these initial bytes in a single packet.
+ * After the host reads the initial part of the device descriptor, it is guaranteed to have read this
+ * default pipe’s wMaxPacketSize field (byte 7 of the device descriptor).
+ * It will then allow the correct size for all subsequent transactions.
+ * For all other control endpoints, the maximum data payload size is known after configuration
+ * so that the USB System Software can ensure that no data payload will be sent to the endpoint that is larger than the supported size. */
+ 
 /* Warning : ep0 has a fifo of 16 bytes */
 /* Don't try to set 32 or 64            */
 /* also testusb 14 fails  wit 16 but is */
 /* fine with 8                          */
-//#define  EP0_FIFO_SIZE		    8
-#define  EP0_FIFO_SIZE		    64
+#define EP0_FIFO_SIZE       8
+/* #define EP0_FIFO_SIZE       64       */
+/* ??? static int sw_udc_read_fifo_crq(struct usb_ctrlrequest *crq) {
+ ...
+ fifo_count = USBC_ReadLenFromFifo(g_sw_udc_io.usb_bsp_hdle, USBC_EP_TYPE_EP0);
+ if (fifo_count != 8) { ... } */
 
-#define  SW_UDC_EP_FIFO_SIZE	    512
+/* drivers/usb/misc/usbtest.c:
+ * case 14:        // short read; try to fill the last packet 
+  req.wValue = cpu_to_le16((USB_DT_DEVICE << 8) | 0);
+  // device descriptor size == 18 bytes
+  len = udev->descriptor.bMaxPacketSize0;
+  if (udev->speed == USB_SPEED_SUPER)
+   len = 512;
+  switch (len) {
+   case 8:
+    len = 24;
+    break;
+   case 16:
+    len = 32;
+    break;
+  } */
+
+/* composite.c:
+ composite_setup():
+   case USB_DT_DEVICE:
+			cdev->desc.bMaxPacketSize0 = cdev->gadget->ep0->maxpacket; */
+
+/* 5.8.3 Bulk Transfer Packet Size Constraints
+ * The USB defines the allowable maximum bulk data payload sizes to be only
+ * 8, 16, 32, or 64 bytes for full-speed endpoints and 512 bytes for high-speed endpoints.
+ * A low-speed device must not have bulk endpoints. */
+#define SW_UDC_EP_FIFO_SIZE 512
+/* 5.7.3 Interrupt Transfer Packet Size Constraints
+ * The maximum allowable interrupt data payload size is 64 bytes or less for full-speed.
+ * High-speed endpoints are allowed maximum data payload sizes up to 1024 bytes. */
+#define SW_UDC_EP_INT_FIFO_SIZE 64
+
+/* The pipe that consists of the two endpoints with endpoint number zero is called the Default Control Pipe.
+ * (it's pipe, so there always two endpoints - device && host?)
+ * 
+ * Each endpoint on a device is given at design time a unique device-determined identifier called the endpoint number.
+ * Each endpoint has a device-determined direction of data flow.
+ * The combination of the device address, endpoint number, and direction allows each endpoint to be uniquely referenced.
+ * Each endpoint is a simplex connection that supports data flow in one direction: either input (from device to host) or output (from host to device).*/
 
 #define	 SW_UDC_EP_CTRL_INDEX			0x00
 #define  SW_UDC_EP_BULK_IN_INDEX		0x01

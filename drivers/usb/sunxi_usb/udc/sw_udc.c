@@ -1836,9 +1836,9 @@ static irqreturn_t sw_udc_irq(int dummy, void *_dev)
 		/* clear interrupt */
 		USBC_INT_ClearMiscPending(g_sw_udc_io.usb_bsp_hdle, USBC_INTUSB_SUSPEND);
 
-		if(dev->gadget.speed != USB_SPEED_UNKNOWN){
+		if (dev->gadget.speed != USB_SPEED_UNKNOWN){
 			usb_connect = 0;
-		}else{
+		} else {
 			DMSG_INFO_UDC("ERR: usb speed is unkown\n");
 		}
 
@@ -1851,11 +1851,10 @@ static irqreturn_t sw_udc_irq(int dummy, void *_dev)
 		}
 
 		dev->ep0state = EP0_IDLE;
-
 	}
 
     /* DISCONNECT */
-    if(usb_irq & USBC_INTUSB_DISCONNECT){
+    if (usb_irq & USBC_INTUSB_DISCONNECT) {
         DMSG_INFO_UDC("IRQ: disconnect\n");
 
 		USBC_INT_ClearMiscPending(g_sw_udc_io.usb_bsp_hdle, USBC_INTUSB_DISCONNECT);
@@ -1883,8 +1882,8 @@ static irqreturn_t sw_udc_irq(int dummy, void *_dev)
 				DMSG_INFO_UDC("\n+++++++++++++++++++++++++++++++++++++\n");
 			    DMSG_INFO_UDC(" usb enter high speed.\n");
 			    DMSG_INFO_UDC("\n+++++++++++++++++++++++++++++++++++++\n");
-			}else{
-				dev->gadget.speed= USB_SPEED_FULL;
+			} else {
+				dev->gadget.speed = USB_SPEED_FULL;
 
 				DMSG_INFO_UDC("\n+++++++++++++++++++++++++++++++++++++\n");
 			    DMSG_INFO_UDC(" usb enter full speed.\n");

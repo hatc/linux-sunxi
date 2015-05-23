@@ -357,6 +357,9 @@ fsg_intf_desc = {
  * interrupt-in.
  */
 
+#ifdef USE__CLAIM_EP_BY_NAME
+#define MULTI_F_MASS_STORAGE_FSG_FS_BULK_IN_EP_NAME "ep1-bulk"
+#endif
 static struct usb_endpoint_descriptor
 fsg_fs_bulk_in_desc = {
 	.bLength =		USB_DT_ENDPOINT_SIZE,
@@ -367,6 +370,9 @@ fsg_fs_bulk_in_desc = {
 	/* wMaxPacketSize set by autoconfiguration */
 };
 
+#ifdef USE__CLAIM_EP_BY_NAME
+#define MULTI_F_MASS_STORAGE_FSG_FS_BULK_OUT_EP_NAME "ep2-bulk"
+#endif
 static struct usb_endpoint_descriptor
 fsg_fs_bulk_out_desc = {
 	.bLength =		USB_DT_ENDPOINT_SIZE,

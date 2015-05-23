@@ -42,8 +42,10 @@ MODULE_LICENSE("GPL");
 #include "composite.c"
 #include "usbstring.c"
 #include "config.c"
+#include "epclaim.c"
 #include "epautoconf.c"
 
+#define USE__CLAIM_EP_BY_NAME 1
 #include "f_rndis.c"
 #include "rndis.c"
 #include "f_mass_storage.c"
@@ -141,11 +143,14 @@ static __init int rndis_do_config(struct usb_configuration *c)
 		c->descriptors = otg_desc;
 		c->bmAttributes |= USB_CONFIG_ATT_WAKEUP;
 	}
-
+	
+	/* rndis->port.func.bind = rndis_bind
+	rndis_bind_config() calls usb_add_function(... &rndis->port.func); */
 	ret = rndis_bind_config(c, hostaddr);
 	if (ret < 0)
 		return ret;
-
+	/* fsg->function.bind = fsg_bind;
+	fsg_bind_config() calls usb_add_function(... &fsg->function); */
 	ret = fsg_bind_config(c->cdev, c, &fsg_common);
 	if (ret < 0)
 		return ret;
@@ -155,6 +160,8 @@ static __init int rndis_do_config(struct usb_configuration *c)
 
 static int rndis_config_register(struct usb_composite_dev *cdev)
 {
+	/* config_desc() use speed from gadget only for gadget->speed == USB_SPEED_SUPER && gadget_is_dualspeed(gadget)
+	 * in other cases, list_for_each_entry(c, &cdev->configs, list) - list through usb_configuration's */
 	static struct usb_configuration config = {
 		.bConfigurationValue = MULTI_RNDIS_CONFIG_NUM, /* 1 */
 		.bmAttributes        = USB_CONFIG_ATT_SELFPOWER,
@@ -255,13 +262,21 @@ static int __exit multi_unbind(struct usb_composite_dev *cdev)
 	return 0;
 }
 
-/****************************** Some noise ******************************/
-
+/* include/generated/autoconf.h:
+ * #define CONFIG_USB_GADGET 1
+ * #define CONFIG_USB_GADGET_STORAGE_NUM_BUFFERS 2
+ * #define CONFIG_USB_GADGET_VBUS_DRAW 2
+ * so, CONFIG_USB_GADGET_DUALSPEED || CONFIG_USB_GADGET_SUPERSPEED not defined,
+ * i.e. gadget should works on FULLSPEED - usb 1.1, 12 Mbit/s */
 static struct usb_composite_driver multi_driver = {
 	.name		= "g_multi",
 	.dev		= &device_desc,
 	.strings	= dev_strings,
-	.max_speed	= USB_SPEED_SUPER,
+	/* usb_composite_probe(struct usb_composite_driver *driver, int (*bind)(struct usb_composite_dev *cdev)) {
+	 ...
+	 composite_driver.max_speed = min_t(u8, composite_driver.max_speed, driver->max_speed);
+	 so, looks like .max_speed field actually used... */
+	.max_speed	= USB_SPEED_FULL,
 	.unbind		= __exit_p(multi_unbind),
 	/* @needs_serial: set to 1 if the gadget needs userspace to provide a serial number.
 	 * If one is not provided, warning will be printed. */
