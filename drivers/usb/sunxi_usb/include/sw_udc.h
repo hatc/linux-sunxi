@@ -78,8 +78,30 @@ typedef struct sw_udc_ep {
 /* Don't try to set 32 or 64            */
 /* also testusb 14 fails  wit 16 but is */
 /* fine with 8                          */
-#define EP0_FIFO_SIZE       8
-/* #define EP0_FIFO_SIZE       64       */
+/* #define EP0_FIFO_SIZE       8        */
+/* __u32 USBC_WritePacket(__hdle hUSB, __u32 fifo, __u32 cnt, void *buff) {
+ __u32 *buf32 = buff;
+ __u32 len = cnt;
+ __u32 i32 = len >> 2;   // div 4 - int32 count in buff - i.e. cnt in bytes, div 4 - cnt in int's
+ __u8  i8  = len & 0x03; // 11    - bytes tail
+ while (i32--)
+  USBC_Writel(*buf32++, fifo);
+
+ buf8 = (__u8 *)buf32;
+ while (i8--)
+  USBC_Writeb(*buf8++, fifo);
+}
+* 
+sw_udc_handle_ep0(struct sw_udc *dev) {
+ case USB_REQ_SET_FEATURE:
+   fifo = USBC_SelectFIFO(g_sw_udc_io.usb_bsp_hdle, 0); // __u32 USBC_SelectFIFO(__hdle hUSB, __u32 ep_index)
+   USBC_WritePacket(g_sw_udc_io.usb_bsp_hdle, fifo, 54, (u32 *)TestPkt); // write 54 bytes
+* 
+* drivers/usb/sunxi_usb/include/sunxi_usb_bsp.h
+* #define  USBC0_MAX_FIFO_SIZE   	(8 * 1024)
+* #define  USBC_EP0_FIFOSIZE	  	64	// This is non-configurable
+* */
+#define EP0_FIFO_SIZE       64
 /* ??? static int sw_udc_read_fifo_crq(struct usb_ctrlrequest *crq) {
  ...
  fifo_count = USBC_ReadLenFromFifo(g_sw_udc_io.usb_bsp_hdle, USBC_EP_TYPE_EP0);

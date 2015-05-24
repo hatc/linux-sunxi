@@ -732,9 +732,9 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	status = -ENOMEM;
 
 	/* allocate notification request and buffer */
-#ifdef DEBUG
-	printk("rndis_bind(): usb_ep_alloc_request(ep(0x%p))\n", ep);
-#endif
+/* #ifdef DEBUG */
+	printk(KERN_INFO "rndis_bind(): usb_ep_alloc_request(ep(0x%p))\n", ep);
+/* #endif */
 	rndis->notify_req = usb_ep_alloc_request(ep, GFP_KERNEL);
 	if (!rndis->notify_req)
 		goto fail;

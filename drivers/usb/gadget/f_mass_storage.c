@@ -1385,9 +1385,91 @@ static int do_mode_sense(struct fsg_common *common, struct fsg_buffhd *bh)
 		buf[0] = 0x08;		/* Page code */
 		buf[1] = 10;		/* Page length */
 		memset(buf+2, 0, 10);	/* None of the fields are changeable */
-
+		
+		/*  SCSI Block Commands - 3 (SBC-3)
+		 ftp://www.t10.org/t10/document.05/05-344r0.pdf
+		 6.3.3 Caching mode page PAGE LENGTH 10 byte in f_mass_storage
+		 (Byte\Bit)
+		   7  6        5         4        3    2   1  0
+		 0 PS RESERVED         PAGE CODE (08h)
+		 1      PAGE LENGTH (12h) ??? 10(decimal)) bytes coz we only set up to MAXIMUM PRE-FETCH CEILING fields
+		 2 IC ABPF     CAP       DISC     SIZE WCE MF RCD
+		 3 DEMAND READ RETENTION PRIORITY WRITE RETENTION PRIORITY
+		 4 (MSB) DISABLE PRE-FETCH
+		 5                         TRANSFER LENGTH (LSB)
+		 6 (MSB) MINIMUM PRE-FETCH
+		 7                                         (LSB)
+		 8 (MSB) MAXIMUM PRE-FETCH
+		 9                                         (LSB)
+		 10 (MSB) MAXIMUM PRE-FETCH
+		 11                                CEILING (LSB)
+		 * 
+		 IC - An initiator control(IC) enable bit set to one specifies that the device server use one of the following fields
+		 to control the caching algorithm rather than the device server’s own adaptive algorithm
+		 * 
+		 ABPF - An abort pre-fetch(ABPF) bit set to one, with the DRA bit set to zero,
+		 specifies that the device server abort a pre-fetch upon receipt of a new command.
+		 An ABPF bit set to one takes precedence over the value specified in the MINIMUM PRE-FETCH field.
+		 An ABPF bit set to zero, with the DRA bit set to zero, specifies that the termination
+		 of any active pre-fetch is dependent upon Caching mode page bytes 4 through 11 and is vendor-specific.
+		 * (i.e. if ABPF is 0, then use 4-11 - MINIMUM/MAXIMUM PRE-FETCH fields
+		 * 
+		 CAP - A caching analysis permitted(CAP) bit set to one specifies that the device server perform caching analysis
+		 during subsequent operations. A CAP bit set to zero specifies that caching analysis be disabled
+		 (e.g., to reduce overhead time or to prevent nonpertinent operations from impacting tuning values)
+		 *
+		 DISC - A discontinuity(DISC) bit set to one specifies that the device server continue the pre-fetch across time
+		 discontinuities (e.g., across cylinders) up to the limits of the buffer, or segment, space available for the
+		 pre-fetch. A DISC bit set to zero specifies that pre-fetches be truncated or wrapped at time discontinuities.
+		 * 
+		 SIZE - A size enable(SIZE) bit set to one specifies that the CACHE SEGMENT SIZE field be used to control caching segmentation.
+		 A SIZE bit set to zero specifies that the NUMBER OF CACHE SEGMENTS field be used to control caching segmentation.
+		 Simultaneous use of both the number of segments and the segment size is vendor-specific.
+		 * 
+		 WCE - A writeback cache enable(WCE) bit set to zero specifies that the device server shall return GOOD status
+		 for a WRITE command only after successfully writing all of the data to the medium.
+		 A WCE bit set to one specifies that the device server may return GOOD status for a WRITE command
+		 after successfully receiving the data and prior to having successfully written it to the medium.
+		 * 
+		 MF - A multiplication factor(MF) bit set to zero specifies that the device server shall interpret
+		 the MINIMUM PRE-FETCH field and the MAXIMUM PRE-FETCH field in terms of the number of logical blocks
+		 for each of the respective types of pre-fetch.
+		 An MF bit set to one specifies that the device server shall interpret the MINIMUM PRE-FETCH field
+		 and the MAXIMUM PRE-FETCH field to be specified in terms of a scalar number that, when multiplied by the
+		 number of logical blocks to be transferred for the current command, yields the number of logical blocks for
+		 each of the respective types of pre-fetch.
+		 * 
+		 RCD - A read cache disable(RCD) bit set to zero specifies that the device server may return data requested
+		 by a READ command by accessing either the cache or medium. A RCD bit set to one specifies that the device
+		 server shall transfer all of the data requested by a READ command from the medium (i.e., data shall not be transferred from the cache).
+		 * 
+		 * 
+		 DEMAND READ RETENTION PRIORITY field specifies the retention priority the device server should assign for
+		 data read into the cache that has also been transferred to the data-in buffer:
+		   0h The device server should not distinguish between retaining the indicated data and data placed into the cache by other means (e.g., pre-fetch)
+		 * 
+		 WRITE RETENTION PRIORITY field specifies the retention priority the device server should assign for
+		 data written into the cache that has also been transferred from the cache to the medium:
+		   0h The device server should not distinguish between retaining the indicated data and data placed into the cache by other means (e.g., pre-fetch)
+		 * 
+		 * 
+		 if
+		  1. the device has a valid "caching mode page"
+		  2. the WCE bit in "caching mode page" is set to 1
+		  3. the "write-cache buffer flushing" on Windows PC is not turned off
+		 
+		 With these three conditions together, Windows PC will send SCSI WRITE COMMAND with FUA=1
+		 (what makes sense, coz WCE=1 actually tells that device may return GOOD status for a WRITE command before data have written to the medium)
+		 if turning off "write-cache buffer flushing" under device's properties in Explorer,
+		 Windows will pop up error message as following:
+		   Windows could not change the write-caching setting for the device.
+		   Your device might not support this feature or changing the setting.
+		 */
+		
 		if (!changeable_values) {
-			buf[2] = 0x04;	/* Write cache enable, */
+			/* 0x01 - 00000001 RCD bit set, i.e. read cache disabled */
+			/* 0x04 - 00000100, i.e. only WCE bit set */
+			/* buf[2] = 0x04; */ /* Write cache enable, */
 					/* Read cache not disabled */
 					/* No cache retention priorities */
 			put_unaligned_be16(0xffff, &buf[4]);

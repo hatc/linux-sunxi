@@ -1157,7 +1157,7 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 	/* check w_index(0x04) && bRequestType(0000 - Device) for Extended Compat ID OS Descriptor */
 	if (USB_RECIP_DEVICE == (ctrl->bRequestType & USB_RECIP_MASK) && 0x04 == w_index) {
 		if (w_length < 0x10)
-			WARNING(cdev, "[pico]Extended compat ID OS feature descriptor request wLength too small: %d\n", w_length);
+			printk(KERN_WARNING "[pico] Extended compat ID OS feature descriptor request wLength too small: %d\n", w_length);
 		
 		value = -EINVAL;
 		buf = req->buf;
@@ -1181,8 +1181,8 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 				fsg_interface_id = fsg_interface_id - 1;
 				os_descriptor[0x10 + 0x18] = fsg_interface_id;
 			} else
-				WARNING(cdev, "[pico]strange next_interface_id: %d\n", fsg_interface_id);
-			DBG(cdev, "[pico]using %d as fsg_interface_id\n", os_descriptor[0x10 + 0x18]);
+				printk(KERN_WARNING "[pico] strange next_interface_id: %d\n", fsg_interface_id);
+			printk(KERN_DEBUG "[pico] using %d as fsg_interface_id\n", os_descriptor[0x10 + 0x18]);
 			
 			memset(buf, 0, w_length);
 			value = min((u16)os_descriptor[0], w_length);
@@ -1199,7 +1199,7 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 		
 		value = usb_ep_queue(gadget->ep0, req, GFP_ATOMIC);
 		if (value < 0) {
-			DBG(cdev, "ep_queue --> %d\n", value);
+			printk(KERN_DEBUG "[pico] ep_queue --> %d\n", value);
 			req->status = 0;
 			composite_setup_complete(gadget->ep0, req); /* function just prints debug info ... */
 		}
@@ -1284,7 +1284,7 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 			break;
 		case USB_DT_STRING: /* 0x03 - retrieve a string descriptor */
 			if (0xee == (w_value & 0xff)) {
-				DBG(cdev, "[pico]seems as OS string descriptor request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
+				printk(KERN_DEBUG "[pico] seems as OS string descriptor request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
 					ctrl->bRequestType, ctrl->bRequest,
 					w_value, w_index, w_length);
 				
@@ -1299,7 +1299,7 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 					buf[0x11] = 0;
 					value = 0x12;
 				} else {
-					WARNING(cdev, "[pico]OS string descriptor request wLength too small: %d\n", w_length);
+					printk(KERN_WARNING "[pico] OS string descriptor request wLength too small: %d\n", w_length);
 					value = -EINVAL;
 				}
 			} else {
@@ -1443,15 +1443,17 @@ unknown:
 		if ((ctrl->bRequestType & USB_TYPE_VENDOR) && ctrl->bRequest == MULTI_BMS_VENDORCODE) {
 			/* loglevel=8
 			 * this will cause dev_dbg() messages, which are logged at level "<7>", to be reported to the console */
-			DBG(cdev, "[pico]seems as OS feature descriptor request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
+			printk(KERN_DEBUG "[pico] seems as OS feature descriptor request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
 				ctrl->bRequestType, ctrl->bRequest,
 				w_value, w_index, w_length);
 			return __os_descriptors_handling(gadget, ctrl);
 		}
-		VDBG(cdev,
+		printk(KERN_DEBUG "[gadget]: composite_setup(): non-core control request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
+			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length);
+		/* VDBG(cdev,
 			"non-core control req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
-			w_value, w_index, w_length);
+			w_value, w_index, w_length); */
 
 		/* functions always handle their interfaces and endpoints...
 		 * punt other recipients (other, WUSB, ...) to the current
@@ -1510,6 +1512,15 @@ unknown:
 
 done:
 	/* device either stalls (value < 0) or reports success */
+	if (value < 0) {
+		if (-EOPNOTSUPP == value) {
+			printk(KERN_WARNING "[gadget]: composite_setup(): control request not supported: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
+			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length);
+		} else {
+			printk(KERN_WARNING "[gadget]: composite_setup(): control request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d) failed with code %d\n",
+			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length, value);
+		}
+	}
 	return value;
 }
 
@@ -1623,9 +1634,9 @@ static int composite_bind(struct usb_gadget *gadget)
 	INIT_LIST_HEAD(&cdev->configs);
 
 	/* preallocate control response and buffer */
-#ifdef DEBUG
-	printk("composite_bind(): usb_ep_alloc_request(ep(0x%p))\n", gadget->ep0);
-#endif
+/* #ifdef DEBUG */
+	printk(KERN_INFO "composite_bind(): usb_ep_alloc_request(ep(0x%p))\n", gadget->ep0);
+/* #endif */
 	cdev->req = usb_ep_alloc_request(gadget->ep0, GFP_KERNEL);
 	if (!cdev->req)
 		goto fail;

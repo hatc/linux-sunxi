@@ -557,9 +557,9 @@ static int pio_read_fifo(struct sw_udc_ep *ep, struct sw_udc_request *req)
 	USBC_SelectActiveEp(g_sw_udc_io.usb_bsp_hdle, idx);
 
 	fifo_count = sw_udc_fifo_count_out(g_sw_udc_io.usb_bsp_hdle, idx);
-	if(fifo_count > ep->ep.maxpacket){
+	if (fifo_count > ep->ep.maxpacket) {
 		avail = ep->ep.maxpacket;
-	}else{
+	} else {
 		avail = fifo_count;
     }
 
@@ -571,8 +571,11 @@ static int pio_read_fifo(struct sw_udc_ep *ep, struct sw_udc_request *req)
 	if (idx != 0 && fifo_count < ep->ep.maxpacket) {
 		is_last = 1;
 		/* overflowed this request?  flush extra data */
-		if (fifo_count != avail)
+		if (fifo_count != avail) {
 			req->req.status = -EOVERFLOW;
+			printk(KERN_ERR "[sw_udc]: pio_read_fifo(): request overflowed!, ep(0x%p, %u, %s), maxpacket = %u, %u != %d\n",
+				ep, idx, ep->ep.name, (unsigned)ep->ep.maxpacket, avail, fifo_count);
+		}
 	} else {
 		is_last = (req->req.length <= req->req.actual) ? 1 : 0;
 	}
@@ -1029,7 +1032,7 @@ static void sw_udc_handle_ep0_idle(struct sw_udc *dev,
     }
 
 	spin_unlock(&dev->lock);
-	ret = dev->driver->setup(&dev->gadget, crq);
+	ret = dev->driver->setup(&dev->gadget, crq); /* composite_setup() */
 	spin_lock(&dev->lock);
 	if (ret < 0) {
 		if (dev->req_config) {
@@ -1037,9 +1040,9 @@ static void sw_udc_handle_ep0_idle(struct sw_udc *dev,
 			return;
 		}
 
-		if(ret == -EOPNOTSUPP){
+		if (ret == -EOPNOTSUPP) {
 			DMSG_PANIC("ERR: Operation not supported\n");
-		}else{
+		} else {
 			DMSG_PANIC("ERR: dev->driver->setup failed. (%d)\n", ret);
         }
 
@@ -1055,14 +1058,13 @@ static void sw_udc_handle_ep0_idle(struct sw_udc *dev,
 		dev->req_pending=0;
 	}
 
-	if(crq->bRequest == USB_REQ_SET_CONFIGURATION || crq->bRequest == USB_REQ_SET_INTERFACE){
+	if (crq->bRequest == USB_REQ_SET_CONFIGURATION || crq->bRequest == USB_REQ_SET_INTERFACE) {
 		//rx_packet包接收完毕
 		USBC_Dev_ReadDataStatus(g_sw_udc_io.usb_bsp_hdle, USBC_EP_TYPE_EP0, 1);
 	}
 
 	return;
 }
-
 
 #else
 
@@ -1876,7 +1878,7 @@ static irqreturn_t sw_udc_irq(int dummy, void *_dev)
 		USBC_INT_ClearEpPending(g_sw_udc_io.usb_bsp_hdle, USBC_EP_TYPE_TX, 0);
 
 		if(dev->gadget.speed == USB_SPEED_UNKNOWN){
-			if(USBC_Dev_QueryTransferMode(g_sw_udc_io.usb_bsp_hdle) == USBC_TS_MODE_HS){
+			if (USBC_Dev_QueryTransferMode(g_sw_udc_io.usb_bsp_hdle) == USBC_TS_MODE_HS) {
 				dev->gadget.speed = USB_SPEED_HIGH;
 
 				DMSG_INFO_UDC("\n+++++++++++++++++++++++++++++++++++++\n");
@@ -3257,7 +3259,7 @@ static struct sw_udc sw_udc = {
 		.ep = {
 			.name		= "ep5-int",
 			.ops		= &sw_udc_ep_ops,
-			.maxpacket	= SW_UDC_EP_FIFO_SIZE,
+			.maxpacket	= SW_UDC_EP_INT_FIFO_SIZE,
 		},
 		.dev		        = &sw_udc,
 		.fifo_size	        = (SW_UDC_EP_FIFO_SIZE * (SW_UDC_FIFO_NUM + 1)),
