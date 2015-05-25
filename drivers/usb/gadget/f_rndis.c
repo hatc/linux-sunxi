@@ -477,7 +477,13 @@ rndis_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 	u16			w_index = le16_to_cpu(ctrl->wIndex);
 	u16			w_value = le16_to_cpu(ctrl->wValue);
 	u16			w_length = le16_to_cpu(ctrl->wLength);
-
+	
+	/* (ctrl->bRequestType << 8) - integral promotion to unsigned ???
+	 * yeah, 
+	 * "The operands shall be of integral or unscoped enumeration type and integral promotions are performed.
+	 *  The type of the result is that of the promoted left operand."
+	 * sizeof(bRequestType << 8) == 4 */
+	
 	/* composite driver infrastructure handles everything except
 	 * CDC class messages; interface activation uses set_alt().
 	 */
@@ -517,14 +523,24 @@ rndis_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 			/* else stalls ... spec says to avoid that */
 		}
 		break;
+		
+	case ((USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8)
+			| USB_CDC_SET_ETHERNET_PACKET_FILTER:
+		if (w_length != 0 || w_index != rndis->ctrl_id)
+			goto invalid;
+		value = 0;
+		/* rndis->port.cdc_filter = w_value; ??? */
+		break;
 
 	default:
 invalid:
-		VDBG(cdev, "invalid control req%02x.%02x v%04x i%04x l%d\n",
+		/* VDBG(cdev, "invalid control req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
-			w_value, w_index, w_length);
+			w_value, w_index, w_length); */
+		printk(KERN_ERR "[f_rndis]: rndis_setup(): invalid control request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
+			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length);
 	}
-
+	
 	/* respond with data transfer or status phase? */
 	if (value >= 0) {
 		DBG(cdev, "rndis req%02x.%02x v%04x i%04x l%d\n",
