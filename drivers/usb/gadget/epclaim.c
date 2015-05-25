@@ -35,18 +35,18 @@ static struct usb_ep * __claim_ep_by_name(struct usb_gadget *gadget, struct usb_
 		if (strcmp(name, ep->name) == 0) {
 			num = ep->name[2] - '0';
 			if (num < 1 || num > 5) {
-				printk(KERN_ERR "__claim_ep_by_name(): invalid endpoint number %d from name \"%s\"\n", (int)num, ep->name);
+				printk(KERN_ERR "[ERR]__claim_ep_by_name(): invalid endpoint number %d from name \"%s\"\n", (int)num, ep->name);
 				return (struct usb_ep*)0;
 			}
 			type = desc->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK;
 			ep_type = ('b' == ep->name[4]) ? USB_ENDPOINT_XFER_BULK : USB_ENDPOINT_XFER_INT;
 			if (ep_type != type) {
-				printk(KERN_ERR "__claim_ep_by_name(): endpoint type mismatch: type(%d) != ep_type(%d)\n", (int)type, (int)ep_type);
+				printk(KERN_ERR "[ERR]__claim_ep_by_name(): endpoint type mismatch: type(%d) != ep_type(%d)\n", (int)type, (int)ep_type);
 				return (struct usb_ep*)0;
 			}
 			
 			if (!!ep->driver_data) {
-				printk(KERN_ERR "__claim_ep_by_name(): ep(0x%p, \"%s\") already claimed by 0x%p, trying driver_data(0x%p)\n",
+				printk(KERN_ERR "[ERR]__claim_ep_by_name(): ep(0x%p, \"%s\") already claimed by 0x%p, trying driver_data(0x%p)\n",
 					ep, ep->name, ep->driver_data, driver_data);
 				return (struct usb_ep*)0;
 			}
@@ -79,13 +79,13 @@ static struct usb_ep * __claim_ep_by_name(struct usb_gadget *gadget, struct usb_
 			desc->bEndpointAddress |= num;
 			ep->address = desc->bEndpointAddress;
 /* #ifdef DEBUG */
-			printk(KERN_INFO "__claim_ep_by_name(): ep(0x%p, \"%s\") successfully claimed by driver_data(0x%p)\n",
+			printk(KERN_DEBUG "[DBG]__claim_ep_by_name(): ep(0x%p, \"%s\") successfully claimed by driver_data(0x%p)\n",
 				ep, ep->name, ep->driver_data);
 /* #endif */
 			return ep;
 		}
 	}
-	printk(KERN_ERR "__claim_ep_by_name(): endpoint \"%s\" not found\n", name);
+	printk(KERN_ERR "[ERR]__claim_ep_by_name(): endpoint \"%s\" not found\n", name);
 	return (struct usb_ep*)0;
 	
 	/* include/generated/autoconf.h:

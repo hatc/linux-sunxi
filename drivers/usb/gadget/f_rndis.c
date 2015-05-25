@@ -537,22 +537,25 @@ invalid:
 		/* VDBG(cdev, "invalid control req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
 			w_value, w_index, w_length); */
-		printk(KERN_ERR "[f_rndis]: rndis_setup(): invalid control request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
+		printk(KERN_ERR "[ERR][f_rndis]: rndis_setup(): invalid control request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
 			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length);
 	}
 	
 	/* respond with data transfer or status phase? */
 	if (value >= 0) {
-		DBG(cdev, "rndis req%02x.%02x v%04x i%04x l%d\n",
+		/* DBG(cdev, "rndis req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
-			w_value, w_index, w_length);
+			w_value, w_index, w_length); */
 		req->zero = (value < w_length);
 		req->length = value;
+		printk(KERN_DEBUG "[DBG][f_rndis]: rndis_setup(): bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d) : zero(%d) length(%d)\n",
+			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length, req->zero, value);
 		value = usb_ep_queue(cdev->gadget->ep0, req, GFP_ATOMIC);
 		if (value < 0)
-			ERROR(cdev, "rndis response on err %d\n", value);
+			/* ERROR(cdev, "rndis response on err %d\n", value); */
+			printk(KERN_ERR "[ERR][f_rndis]: rndis_setup(): rndis response on err %d\n", value);
 	}
-
+	
 	/* device either stalls (value < 0) or reports success */
 	return value;
 }
