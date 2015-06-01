@@ -537,8 +537,10 @@ invalid:
 		/* VDBG(cdev, "invalid control req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
 			w_value, w_index, w_length); */
+#ifdef ENABLE_PICO_DBG
 		printk(KERN_ERR "[ERR][f_rndis]: rndis_setup(): invalid control request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
 			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length);
+#endif /* ENABLE_PICO_DBG */
 	}
 	
 	/* respond with data transfer or status phase? */
@@ -548,8 +550,10 @@ invalid:
 			w_value, w_index, w_length); */
 		req->zero = (value < w_length);
 		req->length = value;
+#ifdef ENABLE_PICO_DBG
 		printk(KERN_DEBUG "[DBG][f_rndis]: rndis_setup(): bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d) : zero(%d) length(%d)\n",
 			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length, req->zero, value);
+#endif /* ENABLE_PICO_DBG */
 		value = usb_ep_queue(cdev->gadget->ep0, req, GFP_ATOMIC);
 		if (value < 0)
 			/* ERROR(cdev, "rndis response on err %d\n", value); */
@@ -751,9 +755,9 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	status = -ENOMEM;
 
 	/* allocate notification request and buffer */
-/* #ifdef DEBUG */
+#ifdef ENABLE_PICO_DBG
 	printk(KERN_INFO "rndis_bind(): usb_ep_alloc_request(ep(0x%p))\n", ep);
-/* #endif */
+#endif /* ENABLE_PICO_DBG */
 	rndis->notify_req = usb_ep_alloc_request(ep, GFP_KERNEL);
 	if (!rndis->notify_req)
 		goto fail;

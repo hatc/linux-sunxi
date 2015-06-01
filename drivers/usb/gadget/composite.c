@@ -1143,16 +1143,27 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 	struct usb_composite_dev *cdev = get_gadget_data(gadget);
 	struct usb_request       *req = cdev->req;
 	
-	int value;
+	int value, len;
 	u8  *buf;
 	u8  fsg_interface_id;
 	u16 w_index  = le16_to_cpu(ctrl->wIndex);
 	u16 w_length = le16_to_cpu(ctrl->wLength);
+#ifdef ENABLE_PICO_DBG
+	u16 w_value  = le16_to_cpu(ctrl->wValue);
+#endif /* ENABLE_PICO_DBG */
 	
 	req->zero     = 0;
 	req->length   = 0;
 	req->context  = cdev;
 	req->complete = composite_setup_complete;
+	
+#ifdef ENABLE_PICO_DBG
+	/* loglevel=8
+	 * this will cause dev_dbg() messages, which are logged at level "<7>", to be reported to the console */
+	printk(KERN_DEBUG "[DBG][pico] seems as OS descriptor request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
+		ctrl->bRequestType, ctrl->bRequest,
+		w_value, w_index, w_length);
+#endif /* ENABLE_PICO_DBG */
 	
 	/* check w_index(0x04) && bRequestType(0000 - Device) for Extended Compat ID OS Descriptor */
 	if (USB_RECIP_DEVICE == (ctrl->bRequestType & USB_RECIP_MASK) && 0x04 == w_index) {
@@ -1182,15 +1193,94 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 				os_descriptor[0x10 + 0x18] = fsg_interface_id;
 			} else
 				printk(KERN_WARNING "[WRN][pico] strange next_interface_id: %d\n", fsg_interface_id);
-			printk(KERN_DEBUG "[DBG][pico] using %d as fsg_interface_id\n", os_descriptor[0x10 + 0x18]);
+#ifdef ENABLE_PICO_DBG
+			printk(KERN_DEBUG "[DBG][pico] Extended compat ID OS feature descriptor request: using %d as fsg_interface_id\n",
+				os_descriptor[0x10 + 0x18]);
+#endif /* ENABLE_PICO_DBG */
 			
 			memset(buf, 0, w_length);
 			value = min((u16)os_descriptor[0], w_length);
 			memcpy(buf, os_descriptor, value);
 		}
-	} else
+	} else if (0xC1 == ctrl->bRequestType && 0x05 == w_index) {
+		/* 0xC1 : 1 10 00001
+		 * 
+		 * Data transfer direction
+		 * 1 = Device-to-host
+		 * 
+		 * D6...5: Type
+		 * 2 = Vendor
+		 * 
+		 * D4...0: Recipient
+		 * 1 = Interface */
+		/* 0  dwLength    4  DWORD  The length, in bytes, of the complete extended properties descriptor
+		 * 4  bcdVersion  2  BCD    The descriptor’s version number, in binary coded decimal (BCD) format
+		 * 6  wIndex      2  WORD   The index for extended properties OS  descriptors 
+		 * 8  wCount      2  WORD   The number of custom property sections that follow the header section */
+		u8 os_ext_descriptor_header[] = { 0x0A, 0x00, 0x00, 0x00, 0x00, 0x01, 0x05, 0x00, 0x01, 0x00 };
+		
+		if (w_length < 0x0A)
+			printk(KERN_WARNING "[WRN][pico] Extended properties OS feature descriptor request wLength too small: %d\n", w_length);	
+		
+		/* bmRequestType(c1) bRequest(06) wValue(0000) wIndex(0005) wLength(10)
+		 * bmRequestType(c1) bRequest(06) wValue(0002) wIndex(0005) wLength(10) */
+		value = -EINVAL;
+		buf = req->buf;
+		if (w_length > 0) {
+			memset(buf, 0, w_length);
+			if (0 == (int)w_index) {
+				/* mega secure protocol
+				 * s = u'\u043c\u0435\u0433\u0430 \u0441\u0435\u043a\u044c\u044e\u0440\u043d\u044b\u0439 \u043f\u0440\u043e\u0442\u043e\u043a\u043e\u043b'
+				 * unsigned char s[0x30] = { 0x3C, 0x04, 0x35, 0x04, 0x33, 0x04, 0x30, 0x04, 0x20, 0x00, 0x41, 0x04, 0x35, 0x04, 0x3A, 0x04, 0x4C,
+				 * 0x04, 0x4E, 0x04, 0x40, 0x04, 0x3D, 0x04, 0x4B, 0x04, 0x39, 0x04, 0x20, 0x00, 0x3F, 0x04, 0x40, 0x04, 0x3E, 0x04, 0x42, 0x04,
+				 * 0x3E, 0x04, 0x3A, 0x04, 0x3E, 0x04, 0x3B, 0x04, 0x00, 0x00 }; */
+				u8 os_ext_descriptor_property[] = { 0x4A, 0x00, 0x00, 0x00,
+					0x01, 0x00, 0x00, 0x00,
+					0x0C, 0x00, 0x4C, 0x00, 0x61, 0x00, 0x62, 0x00, 0x65, 0x00, 0x6C, 0x00, 0x00, 0x00,
+					0x30, 0x00, 0x00, 0x00,
+					0x3C, 0x04, 0x35, 0x04, 0x33, 0x04, 0x30, 0x04, 0x20, 0x00, 0x41, 0x04, 0x35, 0x04,
+					0x3A, 0x04, 0x4C, 0x04, 0x4E, 0x04, 0x40, 0x04, 0x3D, 0x04, 0x4B, 0x04, 0x39, 0x04,
+					0x20, 0x00, 0x3F, 0x04, 0x40, 0x04, 0x3E, 0x04, 0x42, 0x04, 0x3E, 0x04, 0x3A, 0x04,
+					0x3E, 0x04, 0x3B, 0x04, 0x00, 0x00 };
+					
+				value = min((u16)(os_ext_descriptor_header[0] + os_ext_descriptor_property[0]), w_length);
+				memcpy(buf, os_ext_descriptor_header, min(value, (int)os_ext_descriptor_header[0]));
+				len = value - (int)os_ext_descriptor_header[0];
+				buf[0] = os_ext_descriptor_header[0] + os_ext_descriptor_property[0];
+				if (len > 0)
+					memcpy(buf, os_ext_descriptor_property, len);
+			} else {
+				/* shared storage
+				 * s = u'\u0440\u0430\u0441\u0448\u0430\u0440\u0435\u043d\u043d\u043e\u0435 \u0445\u0440\u0430\u043d\u0438\u043b\u0438\u0449\u0435'
+				 * unsigned char s[0x2C] = { 0x40, 0x04, 0x30, 0x04, 0x41, 0x04, 0x48, 0x04, 0x30, 0x04, 0x40, 0x04, 0x35, 0x04, 0x3D, 0x04, 0x3D,
+				 * 0x04, 0x3E, 0x04, 0x35, 0x04, 0x20, 0x00, 0x45, 0x04, 0x40, 0x04, 0x30, 0x04, 0x3D, 0x04, 0x38, 0x04, 0x3B, 0x04, 0x38, 0x04,
+				 * 0x49, 0x04, 0x35, 0x04, 0x00, 0x00 }; */
+				u8 os_ext_descriptor_property[] = { 0x46, 0x00, 0x00, 0x00,
+					0x01, 0x00, 0x00, 0x00,
+					0x0C, 0x00, 0x4C, 0x00, 0x61, 0x00, 0x62, 0x00, 0x65, 0x00, 0x6C, 0x00, 0x00, 0x00,
+					0x2C, 0x00, 0x00, 0x00,
+					0x40, 0x04, 0x30, 0x04, 0x41, 0x04, 0x48, 0x04, 0x30, 0x04, 0x40, 0x04, 0x35, 0x04,
+					0x3D, 0x04, 0x3D, 0x04, 0x3E, 0x04, 0x35, 0x04, 0x20, 0x00, 0x45, 0x04, 0x40, 0x04,
+					0x30, 0x04, 0x3D, 0x04, 0x38, 0x04, 0x3B, 0x04, 0x38, 0x04, 0x49, 0x04, 0x35, 0x04,
+					0x00, 0x00 };
+				
+				value = min((u16)(os_ext_descriptor_header[0] + os_ext_descriptor_property[0]), w_length);
+				memcpy(buf, os_ext_descriptor_header, min(value, (int)os_ext_descriptor_header[0]));
+				len = value - (int)os_ext_descriptor_header[0];
+				buf[0] = os_ext_descriptor_header[0] + os_ext_descriptor_property[0];
+				if (len > 0)
+					memcpy(buf, os_ext_descriptor_property, len);
+			}
+#ifdef ENABLE_PICO_DBG
+			printk(KERN_DEBUG "[DBG][pico] Extended properties OS feature descriptor request: returns %d bytes for %d interface\n",
+				value, (int)w_index);
+#endif /* ENABLE_PICO_DBG */
+		}
+	} else {
 		/* If a particular OS feature descriptor is not present, the device issues a Request Error or a Stall. */
 		value = -EOPNOTSUPP;
+		printk(KERN_WARNING "[WRN][pico] OS feature descriptor not present\n");
+	}
 	
 	if (value >= 0) {
 		req->zero    = value < w_length;
@@ -1199,7 +1289,7 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 		
 		value = usb_ep_queue(gadget->ep0, req, GFP_ATOMIC);
 		if (value < 0) {
-			printk(KERN_DEBUG "[DBG][pico] ep_queue --> %d\n", value);
+			printk(KERN_WARNING "[WRN][pico] usb_ep_queue --> %d\n", value);
 			req->status = 0;
 			composite_setup_complete(gadget->ep0, req); /* function just prints debug info ... */
 		}
@@ -1284,9 +1374,11 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 			break;
 		case USB_DT_STRING: /* 0x03 - retrieve a string descriptor */
 			if (0xee == (w_value & 0xff)) {
+#ifdef ENABLE_PICO_DBG
 				printk(KERN_DEBUG "[DBG][pico] seems as OS string descriptor request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
 					ctrl->bRequestType, ctrl->bRequest,
 					w_value, w_index, w_length);
+#endif /* ENABLE_PICO_DBG */
 				
 				if (w_length >= 0x12) {
 					u8 *buf = req->buf;
@@ -1441,15 +1533,12 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 	default:
 unknown:
 		if ((ctrl->bRequestType & USB_TYPE_VENDOR) && ctrl->bRequest == MULTI_BMS_VENDORCODE) {
-			/* loglevel=8
-			 * this will cause dev_dbg() messages, which are logged at level "<7>", to be reported to the console */
-			printk(KERN_DEBUG "[DBG][pico] seems as OS feature descriptor request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
-				ctrl->bRequestType, ctrl->bRequest,
-				w_value, w_index, w_length);
 			return __os_descriptors_handling(gadget, ctrl);
 		}
+#ifdef ENABLE_PICO_DBG
 		printk(KERN_DEBUG "[DBG][gadget]: composite_setup(): non-core control request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
 			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length);
+#endif /* ENABLE_PICO_DBG */
 		/* VDBG(cdev,
 			"non-core control req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
@@ -1634,9 +1723,9 @@ static int composite_bind(struct usb_gadget *gadget)
 	INIT_LIST_HEAD(&cdev->configs);
 
 	/* preallocate control response and buffer */
-/* #ifdef DEBUG */
+#ifdef ENABLE_PICO_DBG
 	printk(KERN_INFO "composite_bind(): usb_ep_alloc_request(ep(0x%p))\n", gadget->ep0);
-/* #endif */
+#endif /* ENABLE_PICO_DBG */
 	cdev->req = usb_ep_alloc_request(gadget->ep0, GFP_KERNEL);
 	if (!cdev->req)
 		goto fail;
