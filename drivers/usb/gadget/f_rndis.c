@@ -113,9 +113,15 @@ static struct usb_interface_descriptor rndis_control_intf = {
 	/* .bInterfaceNumber = DYNAMIC */
 	/* status endpoint is optional; this could be patched later */
 	.bNumEndpoints =	1,
-	.bInterfaceClass =	USB_CLASS_COMM,
-	.bInterfaceSubClass =   USB_CDC_SUBCLASS_ACM,
-	.bInterfaceProtocol =   USB_CDC_ACM_PROTO_VENDOR,
+#ifdef USE_WIRELESS_RNDIS_CLASS
+	.bInterfaceClass    = 0xE0, /* USB_CLASS_WIRELESS_CONTROLLER */
+	.bInterfaceSubClass = 0x01,
+	.bInterfaceProtocol = 0x03,
+#else
+	.bInterfaceClass    = USB_CLASS_COMM,
+	.bInterfaceSubClass = USB_CDC_SUBCLASS_ACM,
+	.bInterfaceProtocol = USB_CDC_ACM_PROTO_VENDOR,
+#endif
 	/* .iInterface = DYNAMIC */
 };
 
@@ -174,9 +180,16 @@ rndis_iad_descriptor = {
 
 	.bFirstInterface =	0, /* XXX, hardcoded */
 	.bInterfaceCount = 	2,	// control + data
-	.bFunctionClass =	USB_CLASS_COMM,
-	.bFunctionSubClass =	USB_CDC_SUBCLASS_ETHERNET,
-	.bFunctionProtocol =	USB_CDC_PROTO_NONE,
+#ifdef USE_WIRELESS_RNDIS_CLASS
+	/* IAD class, subclass, protocol should match bFirstInterface */
+	.bFunctionClass    = 0xE0, /* USB_CLASS_WIRELESS_CONTROLLER */
+	.bFunctionSubClass = 0x01,
+	.bFunctionProtocol = 0x03,
+#else
+	.bFunctionClass    = USB_CLASS_COMM,
+	.bFunctionSubClass = USB_CDC_SUBCLASS_ETHERNET,
+	.bFunctionProtocol = USB_CDC_PROTO_NONE,
+#endif
 	/* .iFunction = DYNAMIC */
 };
 

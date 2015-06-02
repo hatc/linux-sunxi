@@ -1355,9 +1355,12 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		case USB_DT_DEVICE_QUALIFIER: /* DEVICE_QUALIFIER */
 		/* If a full-speed only device (with a device descriptor version number equal to 0200H) 
 		 * receives a GetDescriptor() request for a device_qualifier, it must respond with a request error. */
-			if (!gadget_is_dualspeed(gadget) ||
-			    gadget->speed >= USB_SPEED_SUPER)
+			if (!gadget_is_dualspeed(gadget) || gadget->speed >= USB_SPEED_SUPER) {
+#ifdef ENABLE_PICO_DBG
+				printk(KERN_DEBUG "[DBG][pico] USB_DT_DEVICE_QUALIFIER not supported, gadget_is_dualspeed(gadget) ? %d\n", gadget_is_dualspeed(gadget));
+#endif /* ENABLE_PICO_DBG */
 				break;
+			}
 			device_qual(cdev);
 			value = min_t(int, w_length,
 				sizeof(struct usb_qualifier_descriptor));
@@ -1403,7 +1406,7 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 				value = min(w_length, (u16) value);
 			break;
 		case USB_DT_BOS:
-			if (gadget_is_superspeed(gadget)) {
+			if (gadget_is_dualspeed(gadget) || gadget_is_superspeed(gadget)) {
 				value = bos_desc(cdev);
 				value = min(w_length, (u16) value);
 			}

@@ -51,7 +51,22 @@ static struct usb_ep * __claim_ep_by_name(struct usb_gadget *gadget, struct usb_
 				return (struct usb_ep*)0;
 			}
 			ep->driver_data = driver_data; /* claim the endpoint */
-			
+			if (gadget_is_dualspeed(gadget))
+			{
+			switch (type) {
+				case USB_ENDPOINT_XFER_BULK:
+					desc->wMaxPacketSize = 512;
+					break;
+				case USB_ENDPOINT_XFER_INT:
+					if (!desc->wMaxPacketSize) /* f_rndis set it to STATUS_BYTECOUNT */
+						desc->wMaxPacketSize = 64;
+					break;
+				default:
+					desc->wMaxPacketSize = cpu_to_le16(ep->maxpacket);
+			}
+			}
+			else 
+			{
 			/* assume USB_SPEED_FULL */
 			switch (type) {
 				case USB_ENDPOINT_XFER_BULK:
@@ -63,6 +78,7 @@ static struct usb_ep * __claim_ep_by_name(struct usb_gadget *gadget, struct usb_
 					break;
 				default:
 					desc->wMaxPacketSize = cpu_to_le16(ep->maxpacket);
+			}
 			}
 			
 			/* bEndpointAddress 1 byte
@@ -78,10 +94,10 @@ static struct usb_ep * __claim_ep_by_name(struct usb_gadget *gadget, struct usb_
 			/* set endpoint number */
 			desc->bEndpointAddress |= num;
 			ep->address = desc->bEndpointAddress;
-/* #ifdef DEBUG */
+#ifdef ENABLE_PICO_DBG
 			printk(KERN_DEBUG "[DBG]__claim_ep_by_name(): ep(0x%p, \"%s\") successfully claimed by driver_data(0x%p)\n",
 				ep, ep->name, ep->driver_data);
-/* #endif */
+#endif /* ENABLE_PICO_DBG */
 			return ep;
 		}
 	}

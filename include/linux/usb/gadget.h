@@ -556,16 +556,18 @@ static inline struct usb_gadget *dev_to_usb_gadget(struct device *dev)
  * gadget_is_dualspeed - return true iff the hardware handles high speed
  * @g: controller that might support both high and full speeds
  */
-static inline int gadget_is_dualspeed(struct usb_gadget *g)
+/*static inline int gadget_is_dualspeed(struct usb_gadget *g)
 {
 #ifdef CONFIG_USB_GADGET_DUALSPEED
-	/* runtime test would check "g->max_speed" ... that might be
-	 * useful to work around hardware bugs, but is mostly pointless
-	 */
+	// runtime test would check "g->max_speed" ... that might be
+	// useful to work around hardware bugs, but is mostly pointless
 	return 1;
 #else
 	return 0;
 #endif
+}*/
+static inline int gadget_is_dualspeed(struct usb_gadget *g) {
+	return g->max_speed >= USB_SPEED_HIGH;
 }
 
 /**

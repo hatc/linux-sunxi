@@ -48,6 +48,7 @@ MODULE_LICENSE("GPL");
 #include "epautoconf.c"
 
 #define USE__CLAIM_EP_BY_NAME 1
+#define USE_WIRELESS_RNDIS_CLASS 1
 #include "f_rndis.c"
 #include "rndis.c"
 #include "f_mass_storage.c"
@@ -278,7 +279,7 @@ static struct usb_composite_driver multi_driver = {
 	 ...
 	 composite_driver.max_speed = min_t(u8, composite_driver.max_speed, driver->max_speed);
 	 so, looks like .max_speed field actually used... */
-	.max_speed	= USB_SPEED_FULL,
+	.max_speed	= USB_SPEED_HIGH, /* USB_SPEED_FULL, */
 	.unbind		= __exit_p(multi_unbind),
 	/* @needs_serial: set to 1 if the gadget needs userspace to provide a serial number.
 	 * If one is not provided, warning will be printed. */

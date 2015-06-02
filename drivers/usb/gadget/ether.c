@@ -395,7 +395,7 @@ static struct usb_composite_driver eth_driver = {
 	.name		= "g_ether",
 	.dev		= &device_desc,
 	.strings	= dev_strings,
-	.max_speed	= USB_SPEED_SUPER,
+	.max_speed	= USB_SPEED_HIGH, /* USB_SPEED_SUPER, */
 	.unbind		= __exit_p(eth_unbind),
 };
 
