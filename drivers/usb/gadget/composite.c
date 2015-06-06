@@ -1148,9 +1148,7 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 	u8  fsg_interface_id;
 	u16 w_index  = le16_to_cpu(ctrl->wIndex);
 	u16 w_length = le16_to_cpu(ctrl->wLength);
-#ifdef ENABLE_PICO_DBG
 	u16 w_value  = le16_to_cpu(ctrl->wValue);
-#endif /* ENABLE_PICO_DBG */
 	
 	req->zero     = 0;
 	req->length   = 0;
@@ -1193,6 +1191,7 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 			 * so, we get NULL dereference
 			 */
 			/* fsg_interface_id = cdev->config->next_interface_id; */
+			fsg_interface_id = 3;
 			
 			if (fsg_interface_id > 0) {
 				fsg_interface_id = fsg_interface_id - 1;
@@ -1234,7 +1233,7 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 		buf = req->buf;
 		if (w_length > 0) {
 			memset(buf, 0, w_length);
-			if (0 == (int)w_index) {
+			if (0 == (int)w_value) {
 				/* mega secure protocol
 				 * s = u'\u043c\u0435\u0433\u0430 \u0441\u0435\u043a\u044c\u044e\u0440\u043d\u044b\u0439 \u043f\u0440\u043e\u0442\u043e\u043a\u043e\u043b'
 				 * unsigned char s[0x30] = { 0x3C, 0x04, 0x35, 0x04, 0x33, 0x04, 0x30, 0x04, 0x20, 0x00, 0x41, 0x04, 0x35, 0x04, 0x3A, 0x04, 0x4C,
@@ -1279,7 +1278,7 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 			}
 #ifdef ENABLE_PICO_DBG
 			printk(KERN_DEBUG "[DBG][pico] Extended properties OS feature descriptor request: returns %d bytes for %d interface\n",
-				value, (int)w_index);
+				value, (int)w_value);
 #endif /* ENABLE_PICO_DBG */
 		}
 	} else {

@@ -94,18 +94,19 @@ enum {
   * .bInterfaceProtocol = 0x03,
   * rndis_iad_descriptor - same as rndis_control_intf */
 
+/* .bDeviceClass    = 0x02 // USB_CLASS_COMM ,
+ * .bDeviceSubClass = 0,
+ * .bDeviceProtocol = 0, */
+
 static struct usb_device_descriptor device_desc = {
 	.bLength         = sizeof device_desc,
 	.bDescriptorType = USB_DT_DEVICE,
 
 	.bcdUSB          = cpu_to_le16(0x0200),
 
-	/*.bDeviceClass    = 0xEF // USB_CLASS_MISC ,
+	.bDeviceClass    = 0xEF /* USB_CLASS_MISC */,
 	.bDeviceSubClass = 2,
-	.bDeviceProtocol = 1, */
-	.bDeviceClass    = 0x02 /* USB_CLASS_COMM */,
-	.bDeviceSubClass = 0,
-	.bDeviceProtocol = 0,
+	.bDeviceProtocol = 1,
 
 	/* Vendor and product id can be overridden by module parameters. */
 	.idVendor        = cpu_to_le16(MULTI_VENDOR_NUM),
@@ -204,6 +205,7 @@ static int rndis_config_register(struct usb_composite_dev *cdev)
 	config.label          = strings_dev[MULTI_STRING_RNDIS_CONFIG_IDX].s;
 	/* usb_string id's already allocated with usb_string_ids_tab() */
 	config.iConfiguration = strings_dev[MULTI_STRING_RNDIS_CONFIG_IDX].id;
+	config.highspeed = 1;
 
 	return usb_add_config(cdev, &config, rndis_do_config);
 }
