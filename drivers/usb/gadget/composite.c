@@ -1179,7 +1179,7 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 				0x52, 0x4E, 0x44, 0x49, 0x53, 0x00, 0x00, 0x00,
 				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 				0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-				0x02,
+				0x02, /* fsg_interface_id is 0x02 by default */
 				0x01,
 				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -1193,11 +1193,10 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 			 * so, we get NULL dereference
 			 */
 			/* fsg_interface_id = cdev->config->next_interface_id; */
-			fsg_interface_id = 2;
 			
 			if (fsg_interface_id > 0) {
 				fsg_interface_id = fsg_interface_id - 1;
-				os_descriptor[0x10 + 0x18] = fsg_interface_id;
+				/* os_descriptor[0x10 + 0x18] = fsg_interface_id; */
 			} else
 				printk(KERN_WARNING "[WRN][pico] strange next_interface_id: %d\n", fsg_interface_id);
 #ifdef ENABLE_PICO_DBG
