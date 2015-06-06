@@ -2928,6 +2928,10 @@ buffhds_first_it:
 	} while (--i);
 	bh->next = common->buffhds;
 
+#ifdef G_MULTI_REV
+	snprintf(common->inquiry_string, sizeof common->inquiry_string,
+		"insecure storage rev.%04X", cpu_to_le16(G_MULTI_REV));
+#else
 	/* Prepare inquiryString */
 	if (cfg->release != 0xffff) {
 		i = cfg->release;
@@ -2948,6 +2952,7 @@ buffhds_first_it:
 				     ? "File-Stor Gadget"
 				     : "File-CD Gadget"),
 		 i);
+#endif
 
 	/*
 	 * Some peripheral controllers are known not to be able to

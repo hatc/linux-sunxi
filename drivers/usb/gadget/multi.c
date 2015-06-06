@@ -47,8 +47,10 @@ MODULE_LICENSE("GPL");
 #include "epclaim.c"
 #include "epautoconf.c"
 
+#define G_MULTI_REV 0x0100
+
 #define USE__CLAIM_EP_BY_NAME 1
-#define USE_WIRELESS_RNDIS_CLASS 1
+#define USE_RNDIS_OVER_ETHERNET_CLASS 1
 #include "f_rndis.c"
 #include "rndis.c"
 #include "f_mass_storage.c"
@@ -66,15 +68,44 @@ enum {
 	MULTI_RNDIS_CONFIG_NUM, /* usb_configuration.bConfigurationValue : should be just a unique per usb_composite_dev, not zero, unsigned char value */
 };
 
+/* g_ether use
+ * .bDeviceClass    = USB_CLASS_COMM, // 0x02
+ * .bDeviceSubClass = 0,
+ * .bDeviceProtocol = 0,
+ * 2/0/0 as required for CDC devices.
+ * 
+ * rndis_control_intf
+ * .bInterfaceClass    = USB_CLASS_COMM,           // 0x02
+ * .bInterfaceSubClass = USB_CDC_SUBCLASS_ACM,     // 0x02
+ * .bInterfaceProtocol = USB_CDC_ACM_PROTO_VENDOR, // 0xFF
+ * rndis_iad_descriptor
+ * .bFunctionClass    = USB_CLASS_COMM,            // 0x02
+ * .bFunctionSubClass = USB_CDC_SUBCLASS_ETHERNET, // 0x06
+ * .bFunctionProtocol = USB_CDC_PROTO_NONE         // 0x00 */
+ 
+ /* tried
+  * .bDeviceClass    = 0xEF // USB_CLASS_MISC
+  * .bDeviceSubClass = 2,
+  * .bDeviceProtocol = 1,
+  * 
+  * rndis_control_intf
+  * .bInterfaceClass    = 0xE0, // USB_CLASS_WIRELESS_CONTROLLER
+  * .bInterfaceSubClass = 0x01,
+  * .bInterfaceProtocol = 0x03,
+  * rndis_iad_descriptor - same as rndis_control_intf */
+
 static struct usb_device_descriptor device_desc = {
 	.bLength         = sizeof device_desc,
 	.bDescriptorType = USB_DT_DEVICE,
 
 	.bcdUSB          = cpu_to_le16(0x0200),
 
-	.bDeviceClass    = 0xEF /* USB_CLASS_MISC */,
+	/*.bDeviceClass    = 0xEF // USB_CLASS_MISC ,
 	.bDeviceSubClass = 2,
-	.bDeviceProtocol = 1,
+	.bDeviceProtocol = 1, */
+	.bDeviceClass    = 0x02 /* USB_CLASS_COMM */,
+	.bDeviceSubClass = 0,
+	.bDeviceProtocol = 0,
 
 	/* Vendor and product id can be overridden by module parameters. */
 	.idVendor        = cpu_to_le16(MULTI_VENDOR_NUM),
@@ -207,6 +238,10 @@ static int __ref multi_bind(struct usb_composite_dev *cdev)
 	}
 
 	/* set bcdDevice */
+#ifdef G_MULTI_REV
+	gcnum = G_MULTI_REV;
+	device_desc.bcdDevice = cpu_to_le16(gcnum);
+#else
 	gcnum = usb_gadget_controller_number(gadget);
 	if (gcnum >= 0) {
 		device_desc.bcdDevice = cpu_to_le16(0x0300 | gcnum);
@@ -226,6 +261,11 @@ static int __ref multi_bind(struct usb_composite_dev *cdev)
 		dev_warn(&gadget->dev, "controller '%s' not recognized\n", gadget->name);
 		device_desc.bcdDevice = cpu_to_le16(0x0300 | 0x0099);
 	}
+#endif
+	
+#ifdef ENABLE_PICO_DBG
+	printk(KERN_INFO "multi_bind(): device_desc.bcdDevice = 0x%04X\n", device_desc.bcdDevice);
+#endif /* ENABLE_PICO_DBG */
 	
 	/* allocate string IDs */
 	status = usb_string_ids_tab(cdev, strings_dev);

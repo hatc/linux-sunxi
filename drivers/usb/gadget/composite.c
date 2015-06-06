@@ -1345,7 +1345,7 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 					cdev->desc.bcdUSB = cpu_to_le16(0x0300);
 					cdev->desc.bMaxPacketSize0 = 9;
 				} else {
-					cdev->desc.bcdUSB = cpu_to_le16(0x0210);
+					cdev->desc.bcdUSB = cpu_to_le16(0x0200); /* default is 0x0210 */
 				}
 			}
 
@@ -1924,6 +1924,11 @@ int usb_composite_probe(struct usb_composite_driver *driver,
 		min_t(u8, composite_driver.max_speed, driver->max_speed);
 	composite = driver;
 	composite_gadget_bind = bind;
+
+#ifdef ENABLE_PICO_DBG
+	printk(KERN_INFO "usb_composite_probe(): composite_driver.max_speed = %d, driver->max_speed = %d, USB_SPEED_HIGH = %d\n",
+		(int)composite_driver.max_speed, (int)driver->max_speed, (int)USB_SPEED_HIGH);
+#endif /* ENABLE_PICO_DBG */
 
 	return usb_gadget_probe_driver(&composite_driver, composite_bind);
 }
