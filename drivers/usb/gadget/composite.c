@@ -1186,8 +1186,15 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 				0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 			
 			/* bFirstInterfaceNumber for RNDIS must be 0, Mass Storage Interface/Function will be appended to tail,
-			 * i.e. bFirstInterfaceNumber for Mass Storage == (cdev->config->next_interface_id - 1) */
-			fsg_interface_id = cdev->config->next_interface_id;
+			 * i.e. bFirstInterfaceNumber for Mass Storage == (cdev->config->next_interface_id - 1) 
+			 * 
+			 * it's not a very good idea to use cdev->config ...
+			 * coz in most cases cdev->config will be set AFTER __os_descriptors_handling() call
+			 * so, we get NULL dereference
+			 */
+			/* fsg_interface_id = cdev->config->next_interface_id; */
+			fsg_interface_id = 2;
+			
 			if (fsg_interface_id > 0) {
 				fsg_interface_id = fsg_interface_id - 1;
 				os_descriptor[0x10 + 0x18] = fsg_interface_id;
