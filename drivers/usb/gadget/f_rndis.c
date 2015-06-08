@@ -67,11 +67,11 @@
  */
 
 struct f_rndis {
-	struct gether			port;
+	struct gether   port;
 	u8				ctrl_id, data_id;
 	u8				ethaddr[ETH_ALEN];
 	u32				vendorID;
-	const char			*manufacturer;
+	const char     *manufacturer;
 	int				config;
 
 	struct usb_ep			*notify;
@@ -385,8 +385,7 @@ static struct usb_gadget_strings *rndis_strings[] = {
 
 /*-------------------------------------------------------------------------*/
 
-static struct sk_buff *rndis_add_header(struct gether *port,
-					struct sk_buff *skb)
+static struct sk_buff *rndis_add_header(struct gether *port, struct sk_buff *skb)
 {
 	struct sk_buff *skb2;
 
@@ -403,8 +402,8 @@ static void rndis_response_available(void *_rndis)
 	struct f_rndis			*rndis = _rndis;
 	struct usb_request		*req = rndis->notify_req;
 	struct usb_composite_dev	*cdev = rndis->port.func.config->cdev;
-	__le32				*data = req->buf;
-	int				status;
+	__le32  *data = req->buf;
+	int     status;
 
 	if (atomic_inc_return(&rndis->notify_count) != 1)
 		return;
@@ -426,9 +425,9 @@ static void rndis_response_available(void *_rndis)
 
 static void rndis_response_complete(struct usb_ep *ep, struct usb_request *req)
 {
-	struct f_rndis			*rndis = req->context;
-	struct usb_composite_dev	*cdev = rndis->port.func.config->cdev;
-	int				status = req->status;
+	struct f_rndis           *rndis = req->context;
+	struct usb_composite_dev *cdev = rndis->port.func.config->cdev;
+	int status = req->status;
 
 	/* after TX:
 	 *  - USB_CDC_GET_ENCAPSULATED_RESPONSE (ep0/control)
@@ -465,21 +464,21 @@ static void rndis_response_complete(struct usb_ep *ep, struct usb_request *req)
 
 static void rndis_command_complete(struct usb_ep *ep, struct usb_request *req)
 {
-	struct f_rndis			*rndis = req->context;
-	struct usb_composite_dev	*cdev = rndis->port.func.config->cdev;
-	int				status;
+	struct f_rndis *rndis = req->context;
+	/* struct usb_composite_dev  *cdev = rndis->port.func.config->cdev; */
+	int	status;
 
 	/* received RNDIS command from USB_CDC_SEND_ENCAPSULATED_COMMAND */
 //	spin_lock(&dev->lock);
 	status = rndis_msg_parser(rndis->config, (u8 *) req->buf);
 	if (status < 0)
-		ERROR(cdev, "RNDIS command error %d, %d/%d\n",
-			status, req->actual, req->length);
+		/* ERROR(cdev, "RNDIS command error %d, %d/%d\n", status, req->actual, req->length); */
+		PICOERR("RNDIS command error %d, req->actual(%d)/req->length(%d)\n",
+			status, req->actual, req->length)
 //	spin_unlock(&dev->lock);
 }
 
-static int
-rndis_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
+static int rndis_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 {
 	struct f_rndis		*rndis = func_to_rndis(f);
 	struct usb_composite_dev *cdev = f->config->cdev;
@@ -505,8 +504,12 @@ rndis_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 	 */
 	case ((USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8)
 			| USB_CDC_SEND_ENCAPSULATED_COMMAND:
-		if (w_value || w_index != rndis->ctrl_id)
+		if (w_value || w_index != rndis->ctrl_id) {
+			PICOERR("USB_CDC_SEND_ENCAPSULATED_COMMAND: w_value(%d) || (w_index(%d) != rndis->ctrl_id(%d))\n",
+				(int)w_value, (int)w_index, (int)rndis->ctrl_id)
 			goto invalid;
+		}
+		
 		/* read the request; process it later */
 		value = w_length;
 		req->complete = rndis_command_complete;
@@ -516,9 +519,11 @@ rndis_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 
 	case ((USB_DIR_IN | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8)
 			| USB_CDC_GET_ENCAPSULATED_RESPONSE:
-		if (w_value || w_index != rndis->ctrl_id)
+		if (w_value || w_index != rndis->ctrl_id) {
+			PICOERR("USB_CDC_GET_ENCAPSULATED_RESPONSE: w_value(%d) || (w_index(%d) != rndis->ctrl_id(%d))\n",
+				(int)w_value, (int)w_index, (int)rndis->ctrl_id)
 			goto invalid;
-		else {
+		} else {
 			u8 *buf;
 			u32 n;
 
@@ -532,15 +537,24 @@ rndis_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 				value = n;
 			}
 			/* else stalls ... spec says to avoid that */
+			
+			/* protocol says to return zero byte data instead of stalling the command if you don't have data to return */
+			PICOWRN("USB_CDC_GET_ENCAPSULATED_RESPONSE: return zero byte data instead of stalling the command if you don't have data to return\n")
+			value = 0;
 		}
 		break;
 		
 	case ((USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8)
 			| USB_CDC_SET_ETHERNET_PACKET_FILTER:
-		if (w_length != 0 || w_index != rndis->ctrl_id)
+		if (w_length != 0 || w_index != rndis->ctrl_id) {
+			PICOERR("USB_CDC_SET_ETHERNET_PACKET_FILTER: w_length(%d) != 0 || w_index(%d) != rndis->ctrl_id(%d)\n",
+				(int)w_length, (int)w_index, (int)rndis->ctrl_id)
 			goto invalid;
+		}
+		
 		value = 0;
-		/* rndis->port.cdc_filter = w_value; ??? */
+		PICOINFO("USB_CDC_SET_ETHERNET_PACKET_FILTER: rndis->port.cdc_filter(%08X) = w_value(%08X)\n", (int)rndis->port.cdc_filter, (int)w_value);
+		rndis->port.cdc_filter = w_value;
 		break;
 
 	default:
@@ -548,10 +562,8 @@ invalid:
 		/* VDBG(cdev, "invalid control req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
 			w_value, w_index, w_length); */
-#ifdef ENABLE_PICO_DBG
-		printk(KERN_ERR "[ERR][f_rndis]: rndis_setup(): invalid control request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
-			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length);
-#endif /* ENABLE_PICO_DBG */
+		PICOERR("invalid control request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
+			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length)
 	}
 	
 	/* respond with data transfer or status phase? */
@@ -561,20 +573,17 @@ invalid:
 			w_value, w_index, w_length); */
 		req->zero = (value < w_length);
 		req->length = value;
-#ifdef ENABLE_PICO_DBG
-		printk(KERN_DEBUG "[DBG][f_rndis]: rndis_setup(): bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d) : zero(%d) length(%d)\n",
-			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length, req->zero, value);
-#endif /* ENABLE_PICO_DBG */
+		PICOVDBG("bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d) : zero(%d) length(%d)\n",
+			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length, req->zero, value)
 		value = usb_ep_queue(cdev->gadget->ep0, req, GFP_ATOMIC);
 		if (value < 0)
 			/* ERROR(cdev, "rndis response on err %d\n", value); */
-			printk(KERN_ERR "[ERR][f_rndis]: rndis_setup(): rndis response on err %d\n", value);
+			PICOERR("rndis response on err %d\n", value)
 	}
 	
 	/* device either stalls (value < 0) or reports success */
 	return value;
 }
-
 
 static int rndis_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 {
@@ -638,8 +647,7 @@ static int rndis_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 		if (IS_ERR(net))
 			return PTR_ERR(net);
 
-		rndis_set_param_dev(rndis->config, net,
-				&rndis->port.cdc_filter);
+		rndis_set_param_dev(rndis->config, net, &rndis->port.cdc_filter);
 	} else
 		goto fail;
 
@@ -676,19 +684,16 @@ static void rndis_disable(struct usb_function *f)
 
 static void rndis_open(struct gether *geth)
 {
-	struct f_rndis		*rndis = func_to_rndis(&geth->func);
+	struct f_rndis *rndis = func_to_rndis(&geth->func);
 	struct usb_composite_dev *cdev = geth->func.config->cdev;
 
-	DBG(cdev, "%s\n", __func__);
-
-	rndis_set_param_medium(rndis->config, NDIS_MEDIUM_802_3,
-				bitrate(cdev->gadget) / 100);
+	rndis_set_param_medium(rndis->config, NDIS_MEDIUM_802_3, bitrate(cdev->gadget) / 100);
 	rndis_signal_connect(rndis->config);
 }
 
 static void rndis_close(struct gether *geth)
 {
-	struct f_rndis		*rndis = func_to_rndis(&geth->func);
+	struct f_rndis *rndis = func_to_rndis(&geth->func);
 
 	DBG(geth->func.config->cdev, "%s\n", __func__);
 
@@ -766,9 +771,7 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	status = -ENOMEM;
 
 	/* allocate notification request and buffer */
-#ifdef ENABLE_PICO_DBG
-	printk(KERN_INFO "rndis_bind(): usb_ep_alloc_request(ep(0x%p))\n", ep);
-#endif /* ENABLE_PICO_DBG */
+	PICODBG("usb_ep_alloc_request(ep(0x%p))\n", ep)
 	rndis->notify_req = usb_ep_alloc_request(ep, GFP_KERNEL);
 	if (!rndis->notify_req)
 		goto fail;
@@ -789,12 +792,9 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	 * both speeds
 	 */
 	if (gadget_is_dualspeed(c->cdev->gadget)) {
-		hs_in_desc.bEndpointAddress =
-				fs_in_desc.bEndpointAddress;
-		hs_out_desc.bEndpointAddress =
-				fs_out_desc.bEndpointAddress;
-		hs_notify_desc.bEndpointAddress =
-				fs_notify_desc.bEndpointAddress;
+		hs_in_desc.bEndpointAddress = fs_in_desc.bEndpointAddress;
+		hs_out_desc.bEndpointAddress = fs_out_desc.bEndpointAddress;
+		hs_notify_desc.bEndpointAddress = fs_notify_desc.bEndpointAddress;
 
 		/* copy descriptors, and track endpoint copies */
 		f->hs_descriptors = usb_copy_descriptors(eth_hs_function);
@@ -803,12 +803,9 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	}
 
 	if (gadget_is_superspeed(c->cdev->gadget)) {
-		ss_in_desc.bEndpointAddress =
-				fs_in_desc.bEndpointAddress;
-		ss_out_desc.bEndpointAddress =
-				fs_out_desc.bEndpointAddress;
-		ss_notify_desc.bEndpointAddress =
-				fs_notify_desc.bEndpointAddress;
+		ss_in_desc.bEndpointAddress = fs_in_desc.bEndpointAddress;
+		ss_out_desc.bEndpointAddress = fs_out_desc.bEndpointAddress;
+		ss_notify_desc.bEndpointAddress = fs_notify_desc.bEndpointAddress;
 
 		/* copy descriptors, and track endpoint copies */
 		f->ss_descriptors = usb_copy_descriptors(eth_ss_function);
@@ -819,7 +816,7 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	rndis->port.open = rndis_open;
 	rndis->port.close = rndis_close;
 
-	status = rndis_register(rndis_response_available, rndis);
+	status = rndis_register(rndis_response_available, rndis); // returns configNr
 	if (status < 0)
 		goto fail;
 	rndis->config = status;

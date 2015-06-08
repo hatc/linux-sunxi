@@ -104,6 +104,8 @@ static inline bool has_rndis(void)
  */
  
 #define ENABLE_PICO_DBG 1
+/* #define ENABLE_PICO_VDBG 1 */
+#include "pico_utils.h"
  
 #include "composite.c"
 #include "usbstring.c"

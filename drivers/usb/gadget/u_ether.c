@@ -442,7 +442,7 @@ static void rx_fill(struct eth_dev *dev, gfp_t gfp_flags)
 
 static void eth_work(struct work_struct *work)
 {
-	struct eth_dev	*dev = container_of(work, struct eth_dev, work);
+	struct eth_dev *dev = container_of(work, struct eth_dev, work);
 
 	if (test_and_clear_bit(WORK_RX_MEMORY, &dev->todo)) {
 		if (netif_running(dev->net))
@@ -486,21 +486,20 @@ static inline int is_promisc(u16 cdc_filter)
 	return cdc_filter & USB_CDC_PACKET_TYPE_PROMISCUOUS;
 }
 
-static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
-					struct net_device *net)
+static netdev_tx_t eth_start_xmit(struct sk_buff *skb, struct net_device *net)
 {
-	struct eth_dev		*dev = netdev_priv(net);
+	struct eth_dev *dev = netdev_priv(net);
 	int			length = skb->len;
 	int			retval;
 	struct usb_request	*req = NULL;
 	unsigned long		flags;
 	struct usb_ep		*in;
-	u16			cdc_filter;
+	u16 cdc_filter;
 
 	spin_lock_irqsave(&dev->lock, flags);
 	if (dev->port_usb) {
 		in = dev->port_usb->in_ep;
-		cdc_filter = dev->port_usb->cdc_filter;
+		cdc_filter = dev->port_usb->cdc_filter; /* i.e. cdc_filter = rndis->port->cdc_filter */
 	} else {
 		in = NULL;
 		cdc_filter = 0;
@@ -514,14 +513,13 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 
 	/* apply outgoing CDC or RNDIS filters */
 	if (!is_promisc(cdc_filter)) {
-		u8		*dest = skb->data;
+		u8 *dest = skb->data;
 
 		if (is_multicast_ether_addr(dest)) {
 			u16	type;
 
 			/* ignores USB_CDC_PACKET_TYPE_MULTICAST and host
-			 * SET_ETHERNET_MULTICAST_FILTERS requests
-			 */
+			 * SET_ETHERNET_MULTICAST_FILTERS requests */
 			if (is_broadcast_ether_addr(dest))
 				type = USB_CDC_PACKET_TYPE_BROADCAST;
 			else

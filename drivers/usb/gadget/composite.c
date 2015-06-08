@@ -1155,18 +1155,16 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 	req->context  = cdev;
 	req->complete = composite_setup_complete;
 	
-#ifdef ENABLE_PICO_DBG
 	/* loglevel=8
 	 * this will cause dev_dbg() messages, which are logged at level "<7>", to be reported to the console */
-	printk(KERN_DEBUG "[DBG][pico] seems as OS descriptor request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
+	PICODBG("seems as OS descriptor request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
 		ctrl->bRequestType, ctrl->bRequest,
-		w_value, w_index, w_length);
-#endif /* ENABLE_PICO_DBG */
+		w_value, w_index, w_length)
 	
 	/* check w_index(0x04) && bRequestType(0000 - Device) for Extended Compat ID OS Descriptor */
 	if (USB_RECIP_DEVICE == (ctrl->bRequestType & USB_RECIP_MASK) && 0x04 == w_index) {
 		if (w_length < 0x10)
-			printk(KERN_WARNING "[WRN][pico] Extended compat ID OS feature descriptor request wLength too small: %d\n", w_length);
+			PICOWRN("Extended compat ID OS feature descriptor request wLength too small: %d\n", w_length)
 		
 		value = -EINVAL;
 		buf = req->buf;
@@ -1197,11 +1195,9 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 				fsg_interface_id = fsg_interface_id - 1;
 				/* os_descriptor[0x10 + 0x18] = fsg_interface_id; */
 			} else
-				printk(KERN_WARNING "[WRN][pico] strange next_interface_id: %d\n", fsg_interface_id);
-#ifdef ENABLE_PICO_DBG
-			printk(KERN_DEBUG "[DBG][pico] Extended compat ID OS feature descriptor request: using %d as fsg_interface_id\n",
-				os_descriptor[0x10 + 0x18]);
-#endif /* ENABLE_PICO_DBG */
+				PICOWRN("strange next_interface_id: %d\n", fsg_interface_id)
+			PICODBG("Extended compat ID OS feature descriptor request: using %d as fsg_interface_id\n",
+				os_descriptor[0x10 + 0x18])
 			
 			memset(buf, 0, w_length);
 			value = min((u16)os_descriptor[0], w_length);
@@ -1225,7 +1221,7 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 		u8 os_ext_descriptor_header[] = { 0x0A, 0x00, 0x00, 0x00, 0x00, 0x01, 0x05, 0x00, 0x01, 0x00 };
 		
 		if (w_length < 0x0A)
-			printk(KERN_WARNING "[WRN][pico] Extended properties OS feature descriptor request wLength too small: %d\n", w_length);	
+			PICOWRN("Extended properties OS feature descriptor request wLength too small: %d\n", w_length)
 		
 		/* bmRequestType(c1) bRequest(06) wValue(0000) wIndex(0005) wLength(10)
 		 * bmRequestType(c1) bRequest(06) wValue(0002) wIndex(0005) wLength(10) */
@@ -1276,15 +1272,13 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 				if (len > 0)
 					memcpy(buf, os_ext_descriptor_property, len);
 			}
-#ifdef ENABLE_PICO_DBG
-			printk(KERN_DEBUG "[DBG][pico] Extended properties OS feature descriptor request: returns %d bytes for %d interface\n",
-				value, (int)w_value);
-#endif /* ENABLE_PICO_DBG */
+			PICODBG("Extended properties OS feature descriptor request: returns %d bytes for %d interface\n",
+				value, (int)w_value)
 		}
 	} else {
 		/* If a particular OS feature descriptor is not present, the device issues a Request Error or a Stall. */
 		value = -EOPNOTSUPP;
-		printk(KERN_WARNING "[WRN][pico] OS feature descriptor not present\n");
+		PICOWRN("OS feature descriptor not present\n")
 	}
 	
 	if (value >= 0) {
@@ -1294,7 +1288,7 @@ static int __os_descriptors_handling(struct usb_gadget *gadget, const struct usb
 		
 		value = usb_ep_queue(gadget->ep0, req, GFP_ATOMIC);
 		if (value < 0) {
-			printk(KERN_WARNING "[WRN][pico] usb_ep_queue --> %d\n", value);
+			PICOWRN("usb_ep_queue --> %d\n", value)
 			req->status = 0;
 			composite_setup_complete(gadget->ep0, req); /* function just prints debug info ... */
 		}
@@ -1361,9 +1355,7 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		/* If a full-speed only device (with a device descriptor version number equal to 0200H) 
 		 * receives a GetDescriptor() request for a device_qualifier, it must respond with a request error. */
 			if (!gadget_is_dualspeed(gadget) || gadget->speed >= USB_SPEED_SUPER) {
-#ifdef ENABLE_PICO_DBG
-				printk(KERN_DEBUG "[DBG][pico] USB_DT_DEVICE_QUALIFIER not supported, gadget_is_dualspeed(gadget) ? %d\n", gadget_is_dualspeed(gadget));
-#endif /* ENABLE_PICO_DBG */
+				PICODBG("USB_DT_DEVICE_QUALIFIER not supported, gadget_is_dualspeed(gadget) ? %d\n", gadget_is_dualspeed(gadget))
 				break;
 			}
 			device_qual(cdev);
@@ -1382,11 +1374,9 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 			break;
 		case USB_DT_STRING: /* 0x03 - retrieve a string descriptor */
 			if (0xee == (w_value & 0xff)) {
-#ifdef ENABLE_PICO_DBG
-				printk(KERN_DEBUG "[DBG][pico] seems as OS string descriptor request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
+				PICODBG("seems as OS string descriptor request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
 					ctrl->bRequestType, ctrl->bRequest,
-					w_value, w_index, w_length);
-#endif /* ENABLE_PICO_DBG */
+					w_value, w_index, w_length)
 				
 				if (w_length >= 0x12) {
 					u8 *buf = req->buf;
@@ -1399,7 +1389,7 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 					buf[0x11] = 0;
 					value = 0x12;
 				} else {
-					printk(KERN_WARNING "[WRN][pico] OS string descriptor request wLength too small: %d\n", w_length);
+					PICOWRN("OS string descriptor request wLength too small: %d\n", w_length)
 					value = -EINVAL;
 				}
 			} else {
@@ -1540,15 +1530,11 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		break;
 	default:
 unknown:
-		if ((ctrl->bRequestType & USB_TYPE_VENDOR) && ctrl->bRequest == MULTI_BMS_VENDORCODE) {
+		if ((ctrl->bRequestType & USB_TYPE_VENDOR) && ctrl->bRequest == MULTI_BMS_VENDORCODE)
 			return __os_descriptors_handling(gadget, ctrl);
-		}
-#ifdef ENABLE_PICO_DBG
-		printk(KERN_DEBUG "[DBG][gadget]: composite_setup(): non-core control request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
+		PICOVDBG("non-core control request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
 			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length);
-#endif /* ENABLE_PICO_DBG */
-		/* VDBG(cdev,
-			"non-core control req%02x.%02x v%04x i%04x l%d\n",
+		/* VDBG(cdev, "non-core control req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
 			w_value, w_index, w_length); */
 
@@ -1611,11 +1597,11 @@ done:
 	/* device either stalls (value < 0) or reports success */
 	if (value < 0) {
 		if (-EOPNOTSUPP == value) {
-			printk(KERN_WARNING "[WRN][gadget]: composite_setup(): control request not supported: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
-			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length);
+			PICOWRN("control request not supported: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d)\n",
+				ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length)
 		} else {
-			printk(KERN_WARNING "[WRN][gadget]: composite_setup(): control request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d) failed with code %d\n",
-			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length, value);
+			PICOWRN("control request: bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d) failed with code %d\n",
+				ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length, value)
 		}
 	}
 	return value;
@@ -1731,9 +1717,7 @@ static int composite_bind(struct usb_gadget *gadget)
 	INIT_LIST_HEAD(&cdev->configs);
 
 	/* preallocate control response and buffer */
-#ifdef ENABLE_PICO_DBG
-	printk(KERN_INFO "composite_bind(): usb_ep_alloc_request(ep(0x%p))\n", gadget->ep0);
-#endif /* ENABLE_PICO_DBG */
+	PICODBG("usb_ep_alloc_request(ep(0x%p))\n", gadget->ep0)
 	cdev->req = usb_ep_alloc_request(gadget->ep0, GFP_KERNEL);
 	if (!cdev->req)
 		goto fail;
@@ -1930,10 +1914,8 @@ int usb_composite_probe(struct usb_composite_driver *driver,
 	composite = driver;
 	composite_gadget_bind = bind;
 
-#ifdef ENABLE_PICO_DBG
-	printk(KERN_INFO "usb_composite_probe(): composite_driver.max_speed = %d, driver->max_speed = %d, USB_SPEED_HIGH = %d\n",
-		(int)composite_driver.max_speed, (int)driver->max_speed, (int)USB_SPEED_HIGH);
-#endif /* ENABLE_PICO_DBG */
+	PICODBG("composite_driver.max_speed = %d, driver->max_speed = %d, USB_SPEED_HIGH = %d\n",
+		(int)composite_driver.max_speed, (int)driver->max_speed, (int)USB_SPEED_HIGH)
 
 	return usb_gadget_probe_driver(&composite_driver, composite_bind);
 }

@@ -15,6 +15,7 @@
 #ifndef _LINUX_RNDIS_H
 #define _LINUX_RNDIS_H
 
+#include <linux/if_ether.h>
 #include "ndis.h"
 
 #define RNDIS_MAXIMUM_FRAME_SIZE	1518
@@ -25,38 +26,37 @@
 #define RNDIS_MINOR_VERSION		0
 
 /* Status Values */
-#define RNDIS_STATUS_SUCCESS		0x00000000U	/* Success           */
-#define RNDIS_STATUS_FAILURE		0xC0000001U	/* Unspecified error */
-#define RNDIS_STATUS_INVALID_DATA	0xC0010015U	/* Invalid data      */
-#define RNDIS_STATUS_NOT_SUPPORTED	0xC00000BBU	/* Unsupported request */
-#define RNDIS_STATUS_MEDIA_CONNECT	0x4001000BU	/* Device connected  */
-#define RNDIS_STATUS_MEDIA_DISCONNECT	0x4001000CU	/* Device disconnected */
+#define RNDIS_STATUS_SUCCESS          0x00000000U /* Success             */
+#define RNDIS_STATUS_FAILURE          0xC0000001U /* Unspecified error   */
+#define RNDIS_STATUS_INVALID_DATA     0xC0010015U /* Invalid data        */
+#define RNDIS_STATUS_NOT_SUPPORTED    0xC00000BBU /* Unsupported request */
+#define RNDIS_STATUS_MEDIA_CONNECT    0x4001000BU /* Device connected    */
+#define RNDIS_STATUS_MEDIA_DISCONNECT 0x4001000CU /* Device disconnected */
 /* For all not specified status messages:
- * RNDIS_STATUS_Xxx -> NDIS_STATUS_Xxx
- */
+ * RNDIS_STATUS_Xxx -> NDIS_STATUS_Xxx */
 
 /* Message Set for Connectionless (802.3) Devices */
-#define REMOTE_NDIS_PACKET_MSG		0x00000001U
-#define REMOTE_NDIS_INITIALIZE_MSG	0x00000002U	/* Initialize device */
-#define REMOTE_NDIS_HALT_MSG		0x00000003U
-#define REMOTE_NDIS_QUERY_MSG		0x00000004U
-#define REMOTE_NDIS_SET_MSG		0x00000005U
-#define REMOTE_NDIS_RESET_MSG		0x00000006U
-#define REMOTE_NDIS_INDICATE_STATUS_MSG	0x00000007U
-#define REMOTE_NDIS_KEEPALIVE_MSG	0x00000008U
+#define REMOTE_NDIS_PACKET_MSG          0x00000001U
+#define REMOTE_NDIS_INITIALIZE_MSG      0x00000002U /* Initialize device */
+#define REMOTE_NDIS_HALT_MSG            0x00000003U
+#define REMOTE_NDIS_QUERY_MSG           0x00000004U
+#define REMOTE_NDIS_SET_MSG             0x00000005U
+#define REMOTE_NDIS_RESET_MSG           0x00000006U
+#define REMOTE_NDIS_INDICATE_STATUS_MSG 0x00000007U
+#define REMOTE_NDIS_KEEPALIVE_MSG       0x00000008U
 
 /* Message completion */
-#define REMOTE_NDIS_INITIALIZE_CMPLT	0x80000002U
-#define REMOTE_NDIS_QUERY_CMPLT		0x80000004U
-#define REMOTE_NDIS_SET_CMPLT		0x80000005U
-#define REMOTE_NDIS_RESET_CMPLT		0x80000006U
-#define REMOTE_NDIS_KEEPALIVE_CMPLT	0x80000008U
+#define REMOTE_NDIS_INITIALIZE_CMPLT 0x80000002U
+#define REMOTE_NDIS_QUERY_CMPLT      0x80000004U
+#define REMOTE_NDIS_SET_CMPLT        0x80000005U
+#define REMOTE_NDIS_RESET_CMPLT      0x80000006U
+#define REMOTE_NDIS_KEEPALIVE_CMPLT  0x80000008U
 
 /* Device Flags */
-#define RNDIS_DF_CONNECTIONLESS		0x00000001U
-#define RNDIS_DF_CONNECTION_ORIENTED	0x00000002U
+#define RNDIS_DF_CONNECTIONLESS      0x00000001U
+#define RNDIS_DF_CONNECTION_ORIENTED 0x00000002U
 
-#define RNDIS_MEDIUM_802_3		0x00000000U
+#define RNDIS_MEDIUM_802_3           0x00000000U
 
 /* from drivers/net/sk98lin/h/skgepnmi.h */
 #define OID_PNP_CAPABILITIES			0xFD010100
@@ -65,7 +65,6 @@
 #define OID_PNP_ADD_WAKE_UP_PATTERN		0xFD010103
 #define OID_PNP_REMOVE_WAKE_UP_PATTERN		0xFD010104
 #define OID_PNP_ENABLE_WAKE_UP			0xFD010106
-
 
 typedef struct rndis_init_msg_type
 {
@@ -214,31 +213,49 @@ enum rndis_state
 
 typedef struct rndis_resp_t
 {
-	struct list_head	list;
+	struct list_head list;
 	u8			*buf;
 	u32			length;
 	int			send;
 } rndis_resp_t;
 
-typedef struct rndis_params
+/*******************************************************
+ * NDIS Hardware status codes (OID_GEN_HARDWARE_STATUS)
+ *******************************************************/
+/* Available and capable of sending and receiving data over the wire */
+#define NdisHardwareStatusReady             (0x00000000)
+/* Initializing - not used - current parser doesn't support transition states - after rndis_msg_parser() returns, rndis_get_next_response() must be available
+#define NdisHardwareStatusInitializing      (0x00000001) */
+/* Resetting    - not used - current parser doesn't support transition states - after rndis_msg_parser() returns, rndis_get_next_response() must be available
+#define NdisHardwareStatusReset             (0x00000002) */
+/* Closing      - not used - current parser doesn't support transition states - after rndis_msg_parser() returns, rndis_get_next_response() must be available
+#define NdisHardwareStatusClosing           (0x00000003) */
+/* Not ready */
+#define NdisHardwareStatusNotReady          (0x00000004)
+
+typedef struct rndis_params_t
 {
 	u8			confignr;
 	u8			used;
-	u16			saved_filter;
-	enum rndis_state	state;
+	u32			saved_filter;
+	enum rndis_state state;
 	u32			medium;
 	u32			speed;
 	u32			media_state;
+	u8			dev_state_open;
+	u32			hw_state;
+	u8          multicast_addr_set;
+	u8          multicast_addr[ETH_ALEN];
 
-	const u8		*host_mac;
-	u16			*filter;
-	struct net_device	*dev;
+	const u8    *host_mac;
+	u16         *filter; /* pointer to rndis->port->cdc_filter */
+	struct net_device *dev;
 
-	u32			vendorID;
-	const char		*vendorDescr;
-	void			(*resp_avail)(void *v);
-	void			*v;
-	struct list_head	resp_queue;
+	u32         vendorID;
+	const char *vendorDescr;
+	void      (*resp_avail)(void *v); /* rndis_response_available(void *_rndis); */
+	void       *v;
+	struct list_head resp_queue;
 } rndis_params;
 
 /* RNDIS Message parser and other useless functions */

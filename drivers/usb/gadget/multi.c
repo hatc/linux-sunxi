@@ -40,6 +40,8 @@ MODULE_LICENSE("GPL");
  */
 
 #define ENABLE_PICO_DBG 1
+/* #define ENABLE_PICO_VDBG 1 */
+#include "pico_utils.h"
 
 #include "composite.c"
 #include "usbstring.c"
@@ -217,6 +219,13 @@ static int __ref multi_bind(struct usb_composite_dev *cdev)
 	struct usb_gadget *gadget = cdev->gadget;
 	int status, gcnum;
 	
+	PICOERR("(0x%p): just a test...\n", cdev);
+	PICOWRN("(0x%p): just a test...\n", cdev);
+	PICODBG("(0x%p): just a test...\n", cdev);
+	PICOERR("just a test...\n");
+	PICOWRN("just a test...\n");
+	PICODBG("just a test...\n");
+	
 	if (!can_support_ecm(cdev->gadget)) {
 		dev_err(&gadget->dev, "controller '%s' not usable\n",
 		        gadget->name);
@@ -265,9 +274,7 @@ static int __ref multi_bind(struct usb_composite_dev *cdev)
 	}
 #endif
 	
-#ifdef ENABLE_PICO_DBG
-	printk(KERN_INFO "multi_bind(): device_desc.bcdDevice = 0x%04X\n", device_desc.bcdDevice);
-#endif /* ENABLE_PICO_DBG */
+	PICOINFO("device_desc.bcdDevice = 0x%04X\n", device_desc.bcdDevice)
 	
 	/* allocate string IDs */
 	status = usb_string_ids_tab(cdev, strings_dev);
