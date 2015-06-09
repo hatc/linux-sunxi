@@ -66,6 +66,14 @@
  *   - MS-Windows drivers sometimes emit undocumented requests.
  */
 
+#ifdef USE_RNDIS_OVER_ETHERNET_CLASS
+static int rndis_use_ethernet_class = 1;
+#else
+static int rndis_use_ethernet_class = 0;
+#endif
+module_param_named(use_ethernet_class, rndis_use_ethernet_class, int, 0);
+MODULE_PARM_DESC(use_ethernet_class, "Use bInterfaceClass/bFunctionClass for RNDIS over Ethernet");
+
 struct f_rndis {
 	struct gether   port;
 	u8				ctrl_id, data_id;
@@ -97,12 +105,8 @@ static unsigned int bitrate(struct usb_gadget *g)
 
 /*-------------------------------------------------------------------------*/
 
-/*
- */
-
 #define LOG2_STATUS_INTERVAL_MSEC	5	/* 1 << 5 == 32 msec */
 #define STATUS_BYTECOUNT		8	/* 8 bytes data */
-
 
 /* interface descriptor: */
 
@@ -113,7 +117,7 @@ static struct usb_interface_descriptor rndis_control_intf = {
 	/* .bInterfaceNumber = DYNAMIC */
 	/* status endpoint is optional; this could be patched later */
 	.bNumEndpoints =	1,
-#ifdef USE_RNDIS_OVER_ETHERNET_CLASS
+#ifdef FORCE_USE_RNDIS_OVER_ETHERNET_CLASS /* USE_RNDIS_OVER_ETHERNET_CLASS */
 	.bInterfaceClass    = USB_CLASS_MISC, /* 0xEF */
 	.bInterfaceSubClass = 0x04,
 	.bInterfaceProtocol = 0x01,
@@ -126,11 +130,11 @@ static struct usb_interface_descriptor rndis_control_intf = {
 };
 
 static struct usb_cdc_header_desc header_desc = {
-	.bLength =		sizeof header_desc,
-	.bDescriptorType =	USB_DT_CS_INTERFACE,
-	.bDescriptorSubType =	USB_CDC_HEADER_TYPE,
+	.bLength            = sizeof header_desc,
+	.bDescriptorType    = USB_DT_CS_INTERFACE,
+	.bDescriptorSubType = USB_CDC_HEADER_TYPE,
 
-	.bcdCDC =		cpu_to_le16(0x0110),
+	.bcdCDC = cpu_to_le16(0x0110),
 };
 
 static struct usb_cdc_call_mgmt_descriptor call_mgmt_descriptor = {
@@ -165,8 +169,8 @@ static struct usb_interface_descriptor rndis_data_intf = {
 	.bDescriptorType =	USB_DT_INTERFACE,
 
 	/* .bInterfaceNumber = DYNAMIC */
-	.bNumEndpoints =	2,
-	.bInterfaceClass =	USB_CLASS_CDC_DATA,
+	.bNumEndpoints   =  2,
+	.bInterfaceClass =  USB_CLASS_CDC_DATA,
 	.bInterfaceSubClass =	0,
 	.bInterfaceProtocol =	0,
 	/* .iInterface = DYNAMIC */
@@ -178,7 +182,7 @@ static struct usb_interface_assoc_descriptor rndis_iad_descriptor = {
 
 	.bFirstInterface =	0, /* XXX, hardcoded */
 	.bInterfaceCount = 	2, // control + data
-#ifdef USE_RNDIS_OVER_ETHERNET_CLASS
+#ifdef FORCE_USE_RNDIS_OVER_ETHERNET_CLASS /* USE_RNDIS_OVER_ETHERNET_CLASS */
 	/* IAD class, subclass, protocol should match bFirstInterface */
 	.bFunctionClass    = USB_CLASS_MISC, /* 0xEF */
 	.bFunctionSubClass = 0x04,
@@ -369,7 +373,7 @@ static struct usb_descriptor_header *eth_ss_function[] = {
 static struct usb_string rndis_string_defs[] = {
 	[0].s = "RNDIS Communications Control",
 	[1].s = "RNDIS Ethernet Data",
-	[2].s = "RNDIS",
+	[2].s = "top notch secure link",
 	{  } /* end of list */
 };
 
@@ -921,6 +925,17 @@ rndis_bind_config_vendor(struct usb_configuration *c, u8 ethaddr[ETH_ALEN],
 
 	if (!can_support_rndis(c) || !ethaddr)
 		return -EINVAL;
+		
+	if (rndis_use_ethernet_class) {
+		rndis_control_intf.bInterfaceClass    = 0xEF; /* USB_CLASS_MISC */
+		rndis_control_intf.bInterfaceSubClass = 0x04;
+		rndis_control_intf.bInterfaceProtocol = 0x01;
+		
+		/* IAD class, subclass, protocol should match bFirstInterface */
+		rndis_iad_descriptor.bFunctionClass    = 0xEF; /* USB_CLASS_MISC */
+		rndis_iad_descriptor.bFunctionSubClass = 0x04;
+		rndis_iad_descriptor.bFunctionProtocol = 0x01;
+	}
 
 	/* setup RNDIS itself */
 	status = rndis_init();
@@ -929,7 +944,6 @@ rndis_bind_config_vendor(struct usb_configuration *c, u8 ethaddr[ETH_ALEN],
 
 	/* maybe allocate device-global string IDs */
 	if (rndis_string_defs[0].id == 0) {
-
 		/* control interface label */
 		status = usb_string_id(c->cdev);
 		if (status < 0)

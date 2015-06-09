@@ -536,11 +536,8 @@ static u32 gen_ndis_set_resp(u8 configNr, u32 OID, u8 *buf, u32 buf_len,
 			netif_carrier_on(params->dev);
 			if (netif_running(params->dev))
 				netif_wake_queue(params->dev);
-			if (params->dev_state_open)
-				rndis_signal_connect(configNr); /* params->media_state = NDIS_MEDIA_STATE_CONNECTED; */
 		} else {
 			params->state = RNDIS_INITIALIZED;
-			rndis_signal_disconnect(configNr); /* params->media_state = NDIS_MEDIA_STATE_DISCONNECTED; */
 			netif_carrier_off(params->dev);
 			netif_stop_queue(params->dev);
 		}
@@ -783,13 +780,11 @@ int rndis_signal_connect(int configNr)
 	if (RNDIS_UNINITIALIZED == params->state) {
 		PICOWRN("RNDIS_STATUS_MEDIA_CONNECT requested, but params->state == RNDIS_UNINITIALIZED, set dev_state_open(%d) to 1",
 			(int)params->dev_state_open)
-	} else if (RNDIS_INITIALIZED == params->state) {
+	} else if (RNDIS_INITIALIZED == params->state || RNDIS_DATA_INITIALIZED == params->state) {
 		if (NDIS_MEDIA_STATE_CONNECTED != params->media_state) {
 			params->media_state = NDIS_MEDIA_STATE_CONNECTED;
 			r = rndis_indicate_status_msg(configNr, RNDIS_STATUS_MEDIA_CONNECT);
 		}
-	} else { /* RNDIS_DATA_INITIALIZED - must be already connected */
-		PICOWRN("RNDIS_STATUS_MEDIA_CONNECT requested, but params->state == RNDIS_DATA_INITIALIZED")
 	}
 	
 	PICODBG("params->state(%s), params->media_state(%s), r(%d)",
@@ -843,12 +838,15 @@ void rndis_set_host_mac(int configNr, const u8 *addr)
  */
 int rndis_msg_parser(u8 configNr, u8 *buf)
 {
+	int r;
 	u32 MsgType, MsgLength;
 	__le32 *tmp;
 	rndis_params *params;
 
-	if (!buf)
+	if (!buf) {
+		PICOERR("!buf")
 		return -ENOMEM;
+	}
 
 	tmp = (__le32 *)buf;
 	MsgType   = get_unaligned_le32(tmp++);
@@ -873,8 +871,10 @@ int rndis_msg_parser(u8 configNr, u8 *buf)
 		
 		params->state = RNDIS_INITIALIZED;
 		params->hw_state = NdisHardwareStatusReady;
-		return rndis_init_response(configNr, (rndis_init_msg_type *)buf);
-
+		r = rndis_init_response(configNr, (rndis_init_msg_type *)buf);
+		if (params->dev_state_open && RNDIS_INITIALIZED == params->state)
+			rndis_signal_connect(configNr); /* params->media_state = NDIS_MEDIA_STATE_CONNECTED; */
+		
 	case REMOTE_NDIS_HALT_MSG:
 		pr_debug("%s: REMOTE_NDIS_HALT_MSG\n", __func__);
 		
@@ -892,7 +892,14 @@ int rndis_msg_parser(u8 configNr, u8 *buf)
 		return rndis_query_response(configNr, (rndis_query_msg_type *)buf);
 
 	case REMOTE_NDIS_SET_MSG:
-		return rndis_set_response(configNr, (rndis_set_msg_type *)buf);
+		r = rndis_set_response(configNr, (rndis_set_msg_type *)buf);
+		if (params->dev_state_open) {
+			if (RNDIS_INITIALIZED == params->state)
+				rndis_signal_disconnect(configNr); /* params->media_state = NDIS_MEDIA_STATE_DISCONNECTED; */
+			else if (RNDIS_DATA_INITIALIZED == params->state)
+				rndis_signal_connect(configNr); /* params->media_state = NDIS_MEDIA_STATE_CONNECTED; */
+		}
+		// signal state
 
 	case REMOTE_NDIS_RESET_MSG:
 		pr_debug("%s: REMOTE_NDIS_RESET_MSG\n", __func__);
