@@ -144,8 +144,7 @@ static void enable_irq_udc(struct sw_udc *dev)
 *
 *******************************************************************************
 */
-static void sw_udc_done(struct sw_udc_ep *ep,
-		struct sw_udc_request *req, int status)
+static void sw_udc_done(struct sw_udc_ep *ep, struct sw_udc_request *req, int status)
 {
 	unsigned halted = ep->halted;
 

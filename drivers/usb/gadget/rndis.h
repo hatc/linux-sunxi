@@ -217,7 +217,7 @@ typedef struct rndis_resp_t
 	u8			*buf;
 	u32			length;
 	int			send;
-} rndis_resp_t;
+} rndis_resp;
 
 /*******************************************************
  * NDIS Hardware status codes (OID_GEN_HARDWARE_STATUS)
@@ -257,6 +257,28 @@ typedef struct rndis_params_t
 	void       *v;
 	struct list_head resp_queue;
 } rndis_params;
+
+/* struct list_head {
+ *   struct list_head *next, *prev;
+ * }
+ * 
+ * list_head *resp_queue : empty
+ * * resp_queue->next = resp_queue;
+ * * resp_queue->prev = resp_queue;
+ * * i.e. next == prev or, more precisely, head == next
+ * 
+ * list_add_tail
+ * * head item0 item1 item2 head
+ * * head.prev = item2, head.next = item0
+ * 
+ * Insert a new entry before the specified head.
+ list_add_tail(struct list_head *new, struct list_head *head)
+  tmp = head->prev;
+  head->prev = new;
+  new->next = head;
+  new->prev = tmp;
+  tmp->next = new;
+ * */
 
 /* RNDIS Message parser and other useless functions */
 int  rndis_msg_parser (u8 configNr, u8 *buf);

@@ -420,10 +420,11 @@ static void rndis_response_available(void *_rndis)
 	data[0] = cpu_to_le32(1);
 	data[1] = cpu_to_le32(0);
 
-	status = usb_ep_queue(rndis->notify, req, GFP_ATOMIC);
-	if (status) {
+	status = usb_ep_queue(rndis->notify, req, GFP_ATOMIC); /* returns zero on success */
+	if (status) { /* i.e. if error */
 		atomic_dec(&rndis->notify_count);
-		DBG(cdev, "notify/0 --> %d\n", status);
+		/* DBG(cdev, "notify/0 --> %d\n", status); */
+		PICOERR("usb_ep_queue(%s) fails with error %d\n", rndis->notify->name, value)
 	}
 }
 
@@ -442,11 +443,14 @@ static void rndis_response_complete(struct usb_ep *ep, struct usb_request *req)
 	case -ESHUTDOWN:
 		/* connection gone */
 		atomic_set(&rndis->notify_count, 0);
+		PICOWRN("connection gone")
 		break;
+
 	default:
-		DBG(cdev, "RNDIS %s response error %d, %d/%d\n",
-			ep->name, status,
-			req->actual, req->length);
+		/* DBG(cdev, "RNDIS %s response error %d, %d/%d\n",
+			ep->name, status, req->actual, req->length); */
+		PICOERR("usb_request(%s)->complete() fails with error %d, usb_request->actual(%d)/usb_request->length(%d)\n",
+			ep->name, status, req->actual, req->length)
 		/* FALLTHROUGH */
 	case 0:
 		if (ep != rndis->notify)
@@ -457,10 +461,12 @@ static void rndis_response_complete(struct usb_ep *ep, struct usb_request *req)
 		 */
 		if (atomic_dec_and_test(&rndis->notify_count))
 			break;
+		
 		status = usb_ep_queue(rndis->notify, req, GFP_ATOMIC);
 		if (status) {
 			atomic_dec(&rndis->notify_count);
-			DBG(cdev, "notify/1 --> %d\n", status);
+			/* DBG(cdev, "notify/1 --> %d\n", status); */
+			PICOERR("usb_ep_queue(%s) fails with error %d\n", rndis->notify->name, value)
 		}
 		break;
 	}
@@ -477,7 +483,7 @@ static void rndis_command_complete(struct usb_ep *ep, struct usb_request *req)
 	status = rndis_msg_parser(rndis->config, (u8 *) req->buf);
 	if (status < 0)
 		/* ERROR(cdev, "RNDIS command error %d, %d/%d\n", status, req->actual, req->length); */
-		PICOERR("RNDIS command error %d, req->actual(%d)/req->length(%d)\n",
+		PICOERR("rndis_msg_parser() fails with error %d, usb_request->actual(%d)/usb_request->length(%d)\n",
 			status, req->actual, req->length)
 //	spin_unlock(&dev->lock);
 }
@@ -539,12 +545,13 @@ static int rndis_setup(struct usb_function *f, const struct usb_ctrlrequest *ctr
 				req->context = rndis;
 				rndis_free_response(rndis->config, buf);
 				value = n;
+			} else {
+				/* else stalls ... spec says to avoid that */
+				
+				/* protocol says to return zero byte data instead of stalling the command if you don't have data to return */
+				PICOWRN("USB_CDC_GET_ENCAPSULATED_RESPONSE: return zero byte data instead of stalling the command if you don't have data to return\n")
+				value = 0;
 			}
-			/* else stalls ... spec says to avoid that */
-			
-			/* protocol says to return zero byte data instead of stalling the command if you don't have data to return */
-			PICOWRN("USB_CDC_GET_ENCAPSULATED_RESPONSE: return zero byte data instead of stalling the command if you don't have data to return\n")
-			value = 0;
 		}
 		break;
 		
@@ -579,10 +586,11 @@ invalid:
 		req->length = value;
 		PICOVDBG("bmRequestType(%02x) bRequest(%02x) wValue(%04x) wIndex(%04x) wLength(%d) : zero(%d) length(%d)\n",
 			ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length, req->zero, value)
+		
 		value = usb_ep_queue(cdev->gadget->ep0, req, GFP_ATOMIC);
 		if (value < 0)
 			/* ERROR(cdev, "rndis response on err %d\n", value); */
-			PICOERR("rndis response on err %d\n", value)
+			PICOERR("usb_ep_queue(ep0) fails with error %d\n", value)
 	}
 	
 	/* device either stalls (value < 0) or reports success */
@@ -712,11 +720,11 @@ static void rndis_close(struct gether *geth)
 static int
 rndis_bind(struct usb_configuration *c, struct usb_function *f)
 {
+	int status;
+	struct usb_ep *ep;
 	struct usb_composite_dev *cdev = c->cdev;
-	struct f_rndis		*rndis = func_to_rndis(f);
-	int			status;
-	struct usb_ep		*ep;
-
+	struct f_rndis *rndis = func_to_rndis(f);
+	
 	/* allocate instance-specific interface IDs */
 	status = usb_interface_id(c, f);
 	if (status < 0)
@@ -775,8 +783,7 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	status = -ENOMEM;
 
 	/* allocate notification request and buffer */
-	PICODBG("usb_ep_alloc_request(ep(0x%p))\n", ep)
-	rndis->notify_req = usb_ep_alloc_request(ep, GFP_KERNEL);
+	rndis->notify_req = usb_ep_alloc_request(rndis->notify, GFP_KERNEL);
 	if (!rndis->notify_req)
 		goto fail;
 	rndis->notify_req->buf = kmalloc(STATUS_BYTECOUNT, GFP_KERNEL);
@@ -968,7 +975,7 @@ rndis_bind_config_vendor(struct usb_configuration *c, u8 ethaddr[ETH_ALEN],
 
 	/* allocate and initialize one new instance */
 	status = -ENOMEM;
-	rndis = kzalloc(sizeof *rndis, GFP_KERNEL);
+	rndis = kzalloc(sizeof *rndis, GFP_KERNEL); /* The memory is set to zero */
 	if (!rndis)
 		goto fail;
 

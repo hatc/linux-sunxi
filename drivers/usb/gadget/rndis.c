@@ -64,7 +64,7 @@ static rndis_params rndis_per_dev_params[RNDIS_MAX_CONFIGS];
 static const __le32 rndis_driver_version = cpu_to_le32(1);
 
 /* Function Prototypes */
-static rndis_resp_t *rndis_add_response(int configNr, u32 length);
+static rndis_resp *rndis_add_response(int configNr, u32 length);
 
 static int rndis_indicate_status_msg(int configNr, u32 status);
 int rndis_signal_connect(int configNr);
@@ -180,7 +180,7 @@ static u16 NDIS2CDC_packet_filter(u32 v) {
 
 /* NDIS Functions */
 static int gen_ndis_query_resp(int configNr, u32 OID, u8 *buf, unsigned buf_len,
-	rndis_resp_t *r, u32 *resp_status)
+	rndis_resp *r, u32 *resp_status)
 {
 	int retval = -ENOTSUPP;
 	u32 length = 4;	/* usually */
@@ -500,7 +500,7 @@ static int gen_ndis_query_resp(int configNr, u32 OID, u8 *buf, unsigned buf_len,
 }
 
 static u32 gen_ndis_set_resp(u8 configNr, u32 OID, u8 *buf, u32 buf_len,
-	rndis_resp_t *r)
+	rndis_resp *r)
 {
 	rndis_set_cmplt_type *resp;
 	rndis_params *params = &rndis_per_dev_params[configNr];
@@ -569,7 +569,7 @@ static u32 gen_ndis_set_resp(u8 configNr, u32 OID, u8 *buf, u32 buf_len,
 static int rndis_init_response(int configNr, rndis_init_msg_type *buf)
 {
 	rndis_init_cmplt_type *resp;
-	rndis_resp_t *r;
+	rndis_resp *r;
 	rndis_params *params = rndis_per_dev_params + configNr;
 
 	if (!params->dev) {
@@ -608,7 +608,7 @@ static int rndis_init_response(int configNr, rndis_init_msg_type *buf)
 static int rndis_query_response(int configNr, rndis_query_msg_type *buf)
 {
 	rndis_query_cmplt_type *resp;
-	rndis_resp_t *r;
+	rndis_resp *r;
 	rndis_params *params = rndis_per_dev_params + configNr;
 	u32 resp_status = RNDIS_STATUS_NOT_SUPPORTED;
 	
@@ -655,7 +655,7 @@ static int rndis_set_response(int configNr, rndis_set_msg_type *buf)
 {
 	u32 BufLength, BufOffset;
 	rndis_set_cmplt_type *resp;
-	rndis_resp_t *r;
+	rndis_resp *r;
 	rndis_params *params = rndis_per_dev_params + configNr;
 
 	r = rndis_add_response(configNr, sizeof(rndis_set_cmplt_type));
@@ -692,7 +692,7 @@ static int rndis_set_response(int configNr, rndis_set_msg_type *buf)
 static int rndis_reset_response(int configNr, rndis_reset_msg_type *buf)
 {
 	rndis_reset_cmplt_type *resp;
-	rndis_resp_t *r;
+	rndis_resp *r;
 	rndis_params *params = rndis_per_dev_params + configNr;
 
 	r = rndis_add_response(configNr, sizeof(rndis_reset_cmplt_type));
@@ -715,7 +715,7 @@ static int rndis_reset_response(int configNr, rndis_reset_msg_type *buf)
 static int rndis_keepalive_response(int configNr, rndis_keepalive_msg_type *buf)
 {
 	rndis_keepalive_cmplt_type *resp;
-	rndis_resp_t *r;
+	rndis_resp *r;
 	rndis_params *params = rndis_per_dev_params + configNr;
 
 	/* host "should" check only in RNDIS_DATA_INITIALIZED state */
@@ -742,7 +742,7 @@ static int rndis_keepalive_response(int configNr, rndis_keepalive_msg_type *buf)
 static int rndis_indicate_status_msg(int configNr, u32 status)
 {
 	rndis_indicate_status_msg_type *resp;
-	rndis_resp_t *r;
+	rndis_resp *r;
 	rndis_params *params = rndis_per_dev_params + configNr;
 
 	if (params->state == RNDIS_UNINITIALIZED) {
@@ -1026,13 +1026,13 @@ void rndis_add_hdr(struct sk_buff *skb)
 
 void rndis_free_response(int configNr, u8 *buf)
 {
-	rndis_resp_t *r;
+	rndis_resp *r;
 	struct list_head *act, *tmp;
 
 	list_for_each_safe(act, tmp,
 			&(rndis_per_dev_params[configNr].resp_queue))
 	{
-		r = list_entry(act, rndis_resp_t, list);
+		r = list_entry(act, rndis_resp, list);
 		if (r && r->buf == buf) {
 			list_del(&r->list);
 			kfree(r);
@@ -1042,15 +1042,16 @@ void rndis_free_response(int configNr, u8 *buf)
 
 u8 *rndis_get_next_response(int configNr, u32 *length)
 {
-	rndis_resp_t *r;
+	rndis_resp *r;
 	struct list_head *act, *tmp;
 
-	if (!length) return NULL;
+	if (!length)
+		return NULL;
 
 	list_for_each_safe(act, tmp,
 			&(rndis_per_dev_params[configNr].resp_queue))
 	{
-		r = list_entry(act, rndis_resp_t, list);
+		r = list_entry(act, rndis_resp, list);
 		if (!r->send) {
 			r->send = 1;
 			*length = r->length;
@@ -1061,13 +1062,14 @@ u8 *rndis_get_next_response(int configNr, u32 *length)
 	return NULL;
 }
 
-static rndis_resp_t *rndis_add_response(int configNr, u32 length)
+static rndis_resp *rndis_add_response(int configNr, u32 length)
 {
-	rndis_resp_t *r;
+	rndis_resp *r;
 
 	/* NOTE: this gets copied into ether.c USB_BUFSIZ bytes ... */
-	r = kmalloc(sizeof(rndis_resp_t) + length, GFP_ATOMIC);
-	if (!r) return NULL;
+	r = kmalloc(sizeof(rndis_resp) + length, GFP_ATOMIC);
+	if (!r)
+		return NULL;
 
 	r->buf = (u8 *)(r + 1);
 	r->length = length;
