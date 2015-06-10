@@ -21,6 +21,15 @@
 #include <linux/usb/composite.h>
 #include <asm/unaligned.h>
 
+/* include/linux/usb/ch9.h:
+enum usb_device_speed { USB_SPEED_UNKNOWN = 0, // enumerating
+	USB_SPEED_LOW,
+	USB_SPEED_FULL,		// usb 1.1
+	USB_SPEED_HIGH,		// usb 2.0
+	USB_SPEED_WIRELESS,	// wireless (usb 2.5)
+	USB_SPEED_SUPER,    // usb 3.0
+}; */
+
 /*
  * The code in this file is utility code, used to build a gadget driver
  * from one or more "function" drivers, one or more "configuration"
@@ -127,6 +136,8 @@ int config_ep_by_speed(struct usb_gadget *g,
 
 	if (!g || !f || !_ep)
 		return -EIO;
+	PICODBG("g->speed(%d), g->max_speed(%d), USB_SPEED_HIGH(%d), ep->name(%s)\n",
+		(int)g->speed, (int)g->max_speed, (int)USB_SPEED_HIGH, _ep->name)
 
 	/* select desired speed */
 	switch (g->speed) {
@@ -149,8 +160,11 @@ int config_ep_by_speed(struct usb_gadget *g,
 	/* find descriptors */
 	for_each_ep_desc(speed_desc, d_spd) {
 		chosen_desc = (struct usb_endpoint_descriptor *)*d_spd;
-		if (chosen_desc->bEndpointAddress == _ep->address)
+		if (chosen_desc->bEndpointAddress == _ep->address) {
+			PICODBG("chosen_desc(0x%p, bEndpointAddress = %02X), ep->name(%s)\n",
+				chosen_desc, (int)chosen_desc->bEndpointAddress, _ep->name)
 			goto ep_found;
+		}
 	}
 	return -EIO;
 

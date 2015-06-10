@@ -2096,24 +2096,23 @@ static inline struct sw_udc_request *to_sw_udc_req(struct usb_request *req)
 *
 *******************************************************************************
 */
-static int sw_udc_ep_enable(struct usb_ep *_ep,
-				 const struct usb_endpoint_descriptor *desc)
+static int sw_udc_ep_enable(struct usb_ep *_ep, const struct usb_endpoint_descriptor *desc)
 {
-	struct sw_udc	*dev			= NULL;
-	struct sw_udc_ep	*ep				= NULL;
-	u32			 	max     		= 0;
-	unsigned long	flags   		= 0;
-    u32     		old_ep_index	= 0;
-	__u32 			fifo_addr 		= 0;
+	struct sw_udc    *dev = NULL;
+	struct sw_udc_ep *ep  = NULL;
+	u32            max   = 0;
+	unsigned long  flags = 0;
+    u32            old_ep_index = 0;
+	__u32          fifo_addr = 0;
 
-	if(_ep == NULL || desc == NULL){
+	if (_ep == NULL || desc == NULL){
 		DMSG_PANIC("ERR: invalid argment\n");
 		return -EINVAL;
 	}
 
 	if (_ep->name == ep0name || desc->bDescriptorType != USB_DT_ENDPOINT){
-		DMSG_PANIC("PANIC : _ep->name(%s) == ep0name || desc->bDescriptorType(%d) != USB_DT_ENDPOINT\n",
-				   _ep->name , desc->bDescriptorType);
+		DMSG_PANIC("PANIC : _ep->name(\"%s\", 0x%p) == ep0name(0x%p) || desc->bDescriptorType(%d) != USB_DT_ENDPOINT(%d)\n",
+				   _ep->name, _ep->name, ep0name, (int)desc->bDescriptorType, (int)USB_DT_ENDPOINT);
 		return -EINVAL;
 	}
 
@@ -2375,26 +2374,29 @@ static int sw_udc_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_
 	unsigned long flags = 0;
 	u8 old_ep_index = 0;
 
-	if(_ep == NULL || _req == NULL ){
+	if (_ep == NULL || _req == NULL ) {
         DMSG_PANIC("ERR: invalid argment\n");
 		return -EINVAL;
 	}
 
     ep = to_sw_udc_ep(_ep);
-    if ((ep == NULL || (!ep->desc && _ep->name != ep0name))){
-        DMSG_PANIC("ERR: sw_udc_queue: inval 2\n");
+    /* if ((ep == NULL || (!ep->desc && _ep->name != ep0name))) { */
+    if (!ep->desc && _ep->name != ep0name) {
+        DMSG_PANIC("ERR: sw_udc_queue: inval 2, ep->desc(0x%p), _ep->name(\"%s\", 0x%p), ep0name(0x%p)\n",
+        	ep->desc, _ep->name, _ep->name, ep0name);
         return -EINVAL;
     }
 
 	dev = ep->dev;
-	if (!dev->driver || dev->gadget.speed == USB_SPEED_UNKNOWN){
+	if (!dev->driver || dev->gadget.speed == USB_SPEED_UNKNOWN) {
 		DMSG_PANIC("ERR : dev->driver=0x%p, dev->gadget.speed=%x\n",
-			       dev->driver, dev->gadget.speed);
+			dev->driver, dev->gadget.speed);
 		return -ESHUTDOWN;
 	}
-
-	if (!_req->complete || !_req->buf){
-       	DMSG_PANIC("ERR: usbd_queue: _req is invalid\n");
+	
+	if (!_req->complete || !_req->buf) {
+		DMSG_PANIC("ERR: usbd_queue: _req is invalid, _req->complete(0x%p), _req->buf(0x%p)\n",
+       		_req->complete, _req->buf);
         return -EINVAL;
 	}
 

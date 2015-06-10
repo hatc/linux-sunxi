@@ -96,8 +96,8 @@ static struct usb_ep * __claim_ep_by_name(struct usb_gadget *gadget, struct usb_
 			/* set endpoint number */
 			desc->bEndpointAddress |= num;
 			ep->address = desc->bEndpointAddress;
-			PICODBG("ep(0x%p, \"%s\") successfully claimed by driver_data(0x%p)\n",
-				ep, ep->name, ep->driver_data)
+			PICODBG("ep(0x%p, \"%s\", address = %02X) successfully claimed by driver_data(0x%p)\n",
+				ep, ep->name, (int)ep->address, ep->driver_data)
 			return ep;
 		}
 	}

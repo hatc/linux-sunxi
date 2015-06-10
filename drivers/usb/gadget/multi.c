@@ -219,15 +219,6 @@ static int __ref multi_bind(struct usb_composite_dev *cdev)
 	struct usb_gadget *gadget = cdev->gadget;
 	int status, gcnum;
 	
-	PICOERR("(0x%p): just a test...\n", cdev);
-	PICOWRN("(0x%p): just a test...\n", cdev);
-	PICODBG("(0x%p): just a test...\n", cdev);
-	PICOVDBG("(0x%p)just a test of verbose debug...\n", cdev);
-	PICOERR("just a test...\n");
-	PICOWRN("just a test...\n");
-	PICODBG("just a test...\n");
-	PICOVDBG("just a test of verbose debug...\n");
-	
 	if (!can_support_ecm(cdev->gadget)) {
 		dev_err(&gadget->dev, "controller '%s' not usable\n",
 		        gadget->name);

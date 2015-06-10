@@ -979,6 +979,9 @@ rndis_bind_config_vendor(struct usb_configuration *c, u8 ethaddr[ETH_ALEN],
 		return -EINVAL;
 		
 	if (__use_rndis_class) {
+		PICODBG("rndis_control_intf.bDescriptorType(%d), USB_DT_INTERFACE(%d)\n",
+			(int)rndis_control_intf.bDescriptorType, (int)USB_DT_INTERFACE);
+		
 		rndis_control_intf.bInterfaceClass    = 0xEF; /* USB_CLASS_MISC */
 		rndis_control_intf.bInterfaceSubClass = 0x04;
 		rndis_control_intf.bInterfaceProtocol = 0x01;
@@ -987,6 +990,9 @@ rndis_bind_config_vendor(struct usb_configuration *c, u8 ethaddr[ETH_ALEN],
 		rndis_iad_descriptor.bFunctionClass    = 0xEF; /* USB_CLASS_MISC */
 		rndis_iad_descriptor.bFunctionSubClass = 0x04;
 		rndis_iad_descriptor.bFunctionProtocol = 0x01;
+		
+		PICODBG("rndis_control_intf.bDescriptorType(%d), USB_DT_INTERFACE(%d)\n",
+			(int)rndis_control_intf.bDescriptorType, (int)USB_DT_INTERFACE);
 	}
 
 	/* setup RNDIS itself */
