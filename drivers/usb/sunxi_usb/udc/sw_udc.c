@@ -2117,12 +2117,12 @@ static int sw_udc_ep_enable(struct usb_ep *_ep, const struct usb_endpoint_descri
 	}
 
 	ep = to_sw_udc_ep(_ep);
-    if(ep == NULL){
+    if (ep == NULL) {
 		DMSG_PANIC("ERR: usbd_ep_enable, ep = NULL\n");
 		return -EINVAL;
 	}
 
-	if(ep->desc){
+	if (ep->desc) {
 		DMSG_PANIC("ERR: usbd_ep_enable, ep->desc is not NULL, ep%d(%s)\n", ep->num, _ep->name);
 		return -EINVAL;
 	}
@@ -2152,7 +2152,7 @@ static int sw_udc_ep_enable(struct usb_ep *_ep, const struct usb_endpoint_descri
 	 */
 	fifo_addr = ep->num * 1024;
 
-	if(!is_peripheral_active()){
+	if (!is_peripheral_active()) {
 		DMSG_PANIC("ERR: usb device is not active\n");
 		goto end;
 	}
@@ -2215,7 +2215,7 @@ static int sw_udc_ep_disable(struct usb_ep *_ep)
 	}
 
 	ep = to_sw_udc_ep(_ep);
-	if(ep == NULL){
+	if (ep == NULL) {
 		DMSG_PANIC("ERR: usbd_ep_disable: ep = NULL\n");
 		return -EINVAL;
 	}
@@ -2236,9 +2236,9 @@ static int sw_udc_ep_disable(struct usb_ep *_ep)
 	ep->desc = NULL;
 	ep->halted = 1;
 
-	sw_udc_nuke (ep->dev, ep, -ESHUTDOWN);
+	sw_udc_nuke(ep->dev, ep, -ESHUTDOWN);
 
-	if(!is_peripheral_active()){
+	if (!is_peripheral_active()) {
 		DMSG_PANIC("ERR: usb device is not active\n");
 		goto end;
 	}
@@ -2249,7 +2249,7 @@ static int sw_udc_ep_disable(struct usb_ep *_ep)
 	if ((ep->bEndpointAddress) & USB_DIR_IN){ /* tx */
 	    USBC_Dev_ConfigEp_Default(g_sw_udc_io.usb_bsp_hdle, USBC_EP_TYPE_TX);
 		USBC_INT_DisableEp(g_sw_udc_io.usb_bsp_hdle, USBC_EP_TYPE_TX, ep->num);
-	}else{ /* rx */
+	} else { /* rx */
 	    USBC_Dev_ConfigEp_Default(g_sw_udc_io.usb_bsp_hdle, USBC_EP_TYPE_RX);
 		USBC_INT_DisableEp(g_sw_udc_io.usb_bsp_hdle, USBC_EP_TYPE_RX, ep->num);
 	}

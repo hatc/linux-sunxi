@@ -639,11 +639,12 @@ static int rndis_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 	struct usb_composite_dev *cdev = f->config->cdev;
 
 	/* we know alt == 0 */
-
 	if (intf == rndis->ctrl_id) {
 		if (rndis->notify->driver_data) {
 			VDBG(cdev, "reset rndis control %d\n", intf);
 			usb_ep_disable(rndis->notify);
+			rndis->notify->desc = NULL;
+			rndis->notify->driver_data = NULL;
 		}
 		if (!rndis->notify->desc) {
 			VDBG(cdev, "init rndis ctrl %d\n", intf);
@@ -718,6 +719,7 @@ static void rndis_disable(struct usb_function *f)
 	gether_disconnect(&rndis->port);
 
 	usb_ep_disable(rndis->notify);
+	rndis->notify->desc = NULL;
 	rndis->notify->driver_data = NULL;
 }
 
@@ -923,13 +925,20 @@ fail:
 	return status;
 }
 
-static void
-rndis_unbind(struct usb_configuration *c, struct usb_function *f)
+static void rndis_unbind(struct usb_configuration *c, struct usb_function *f)
 {
 	struct f_rndis		*rndis = func_to_rndis(f);
-
+	
+	rndis_uninit(rndis->config);
 	rndis_deregister(rndis->config);
 	rndis_exit();
+	
+	gether_disconnect(&rndis->port);
+	
+	if (!!rndis->notify->desc)
+		usb_ep_disable(rndis->notify);
+	rndis->notify->desc = NULL;
+	rndis->notify->driver_data = NULL;
 
 	if (gadget_is_superspeed(c->cdev->gadget))
 		usb_free_descriptors(f->ss_descriptors);
