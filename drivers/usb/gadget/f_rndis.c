@@ -717,7 +717,7 @@ static void rndis_disable(struct usb_function *f)
 
 	rndis_uninit(rndis->config);
 	gether_disconnect(&rndis->port);
-
+	
 	usb_ep_disable(rndis->notify);
 	rndis->notify->desc = NULL;
 	rndis->notify->driver_data = NULL;
@@ -927,18 +927,14 @@ fail:
 
 static void rndis_unbind(struct usb_configuration *c, struct usb_function *f)
 {
-	struct f_rndis		*rndis = func_to_rndis(f);
+	/* composite_disconnect() -> reset_config() 
+	 -> list_for_each_entry(f, &cdev->config->functions, list) -> f->disable(f);
+	 * must already have been called by the underlying peripheral controller driver! */
 	
-	rndis_uninit(rndis->config);
+	struct f_rndis *rndis = func_to_rndis(f);
+	
 	rndis_deregister(rndis->config);
 	rndis_exit();
-	
-	gether_disconnect(&rndis->port);
-	
-	if (!!rndis->notify->desc)
-		usb_ep_disable(rndis->notify);
-	rndis->notify->desc = NULL;
-	rndis->notify->driver_data = NULL;
 
 	if (gadget_is_superspeed(c->cdev->gadget))
 		usb_free_descriptors(f->ss_descriptors);
