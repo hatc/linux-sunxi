@@ -403,11 +403,11 @@ static struct sk_buff *rndis_add_header(struct gether *port, struct sk_buff *skb
 
 static void rndis_response_available(void *_rndis)
 {
-	struct f_rndis			*rndis = _rndis;
-	struct usb_request		*req = rndis->notify_req;
-	struct usb_composite_dev	*cdev = rndis->port.func.config->cdev;
-	__le32  *data = req->buf;
-	int     status;
+	int status;
+	struct f_rndis     *rndis = _rndis;
+	struct usb_request *req = rndis->notify_req;
+	/* struct usb_composite_dev	*cdev = rndis->port.func.config->cdev; */
+	__le32 *data = req->buf;
 
 	if (atomic_inc_return(&rndis->notify_count) != 1)
 		return;
@@ -424,14 +424,14 @@ static void rndis_response_available(void *_rndis)
 	if (status) { /* i.e. if error */
 		atomic_dec(&rndis->notify_count);
 		/* DBG(cdev, "notify/0 --> %d\n", status); */
-		PICOERR("usb_ep_queue(%s) fails with error %d\n", rndis->notify->name, value)
+		PICOERR("usb_ep_queue(%s) fails with error %d\n", rndis->notify->name, status)
 	}
 }
 
 static void rndis_response_complete(struct usb_ep *ep, struct usb_request *req)
 {
 	struct f_rndis           *rndis = req->context;
-	struct usb_composite_dev *cdev = rndis->port.func.config->cdev;
+	/* struct usb_composite_dev *cdev = rndis->port.func.config->cdev; */
 	int status = req->status;
 
 	/* after TX:
@@ -466,7 +466,7 @@ static void rndis_response_complete(struct usb_ep *ep, struct usb_request *req)
 		if (status) {
 			atomic_dec(&rndis->notify_count);
 			/* DBG(cdev, "notify/1 --> %d\n", status); */
-			PICOERR("usb_ep_queue(%s) fails with error %d\n", rndis->notify->name, value)
+			PICOERR("usb_ep_queue(%s) fails with error %d\n", rndis->notify->name, status)
 		}
 		break;
 	}
