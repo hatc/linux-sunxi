@@ -876,7 +876,7 @@ int rndis_msg_parser(u8 configNr, u8 *buf)
 			rndis_signal_connect(configNr); /* params->media_state = NDIS_MEDIA_STATE_CONNECTED; */
 		
 	case REMOTE_NDIS_HALT_MSG:
-		pr_debug("%s: REMOTE_NDIS_HALT_MSG\n", __func__);
+		PICODBG("REMOTE_NDIS_HALT_MSG, params->dev(0x%p)\n", params->dev)
 		
 		/* No response is send to host on receiving Halt Command */
 		params->state = RNDIS_UNINITIALIZED;

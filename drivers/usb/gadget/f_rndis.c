@@ -67,12 +67,12 @@
  */
 
 #ifdef USE_RNDIS_OVER_ETHERNET_CLASS
-static int rndis_use_ethernet_class = 1;
+static int __use_rndis_class = 1;
 #else
-static int rndis_use_ethernet_class = 0;
+static int __use_rndis_class = 0;
 #endif
-module_param_named(use_ethernet_class, rndis_use_ethernet_class, int, 0);
-MODULE_PARM_DESC(use_ethernet_class, "Use bInterfaceClass/bFunctionClass for RNDIS over Ethernet");
+module_param_named(use_rndis_class, __use_rndis_class, int, 0);
+MODULE_PARM_DESC(use_rndis_class, "Use bInterfaceClass/bFunctionClass for RNDIS over Ethernet");
 
 struct f_rndis {
 	struct gether   port;
@@ -249,6 +249,17 @@ static struct usb_descriptor_header *eth_fs_function[] = {
 	(struct usb_descriptor_header *) &fs_out_desc,
 	NULL,
 };
+static struct usb_descriptor_header *rndis_fs_function[] = {
+	(struct usb_descriptor_header *) &rndis_iad_descriptor,
+	(struct usb_descriptor_header *) &rndis_control_intf,
+	(struct usb_descriptor_header *) &fs_notify_desc,
+
+	/* data interface has no altsetting */
+	(struct usb_descriptor_header *) &rndis_data_intf,
+	(struct usb_descriptor_header *) &fs_in_desc,
+	(struct usb_descriptor_header *) &fs_out_desc,
+	NULL,
+};
 
 /* high speed support: */
 
@@ -289,6 +300,17 @@ static struct usb_descriptor_header *eth_hs_function[] = {
 	(struct usb_descriptor_header *) &call_mgmt_descriptor,
 	(struct usb_descriptor_header *) &rndis_acm_descriptor,
 	(struct usb_descriptor_header *) &rndis_union_desc,
+	(struct usb_descriptor_header *) &hs_notify_desc,
+
+	/* data interface has no altsetting */
+	(struct usb_descriptor_header *) &rndis_data_intf,
+	(struct usb_descriptor_header *) &hs_in_desc,
+	(struct usb_descriptor_header *) &hs_out_desc,
+	NULL,
+};
+static struct usb_descriptor_header *rndis_hs_function[] = {
+	(struct usb_descriptor_header *) &rndis_iad_descriptor,
+	(struct usb_descriptor_header *) &rndis_control_intf,
 	(struct usb_descriptor_header *) &hs_notify_desc,
 
 	/* data interface has no altsetting */
@@ -356,6 +378,20 @@ static struct usb_descriptor_header *eth_ss_function[] = {
 	(struct usb_descriptor_header *) &call_mgmt_descriptor,
 	(struct usb_descriptor_header *) &rndis_acm_descriptor,
 	(struct usb_descriptor_header *) &rndis_union_desc,
+	(struct usb_descriptor_header *) &ss_notify_desc,
+	(struct usb_descriptor_header *) &ss_intr_comp_desc,
+
+	/* data interface has no altsetting */
+	(struct usb_descriptor_header *) &rndis_data_intf,
+	(struct usb_descriptor_header *) &ss_in_desc,
+	(struct usb_descriptor_header *) &ss_bulk_comp_desc,
+	(struct usb_descriptor_header *) &ss_out_desc,
+	(struct usb_descriptor_header *) &ss_bulk_comp_desc,
+	NULL,
+};
+static struct usb_descriptor_header *rndis_ss_function[] = {
+	(struct usb_descriptor_header *) &rndis_iad_descriptor,
+	(struct usb_descriptor_header *) &rndis_control_intf,
 	(struct usb_descriptor_header *) &ss_notify_desc,
 	(struct usb_descriptor_header *) &ss_intr_comp_desc,
 
@@ -794,7 +830,10 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	rndis->notify_req->complete = rndis_response_complete;
 
 	/* copy descriptors, and track endpoint copies */
-	f->descriptors = usb_copy_descriptors(eth_fs_function);
+	if (__use_rndis_class)
+		f->descriptors = usb_copy_descriptors(rndis_fs_function);
+	else
+		f->descriptors = usb_copy_descriptors(eth_fs_function);
 	if (!f->descriptors)
 		goto fail;
 
@@ -808,7 +847,10 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 		hs_notify_desc.bEndpointAddress = fs_notify_desc.bEndpointAddress;
 
 		/* copy descriptors, and track endpoint copies */
-		f->hs_descriptors = usb_copy_descriptors(eth_hs_function);
+		if (__use_rndis_class)
+			f->hs_descriptors = usb_copy_descriptors(rndis_hs_function);
+		else
+			f->hs_descriptors = usb_copy_descriptors(eth_hs_function);
 		if (!f->hs_descriptors)
 			goto fail;
 	}
@@ -819,7 +861,10 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 		ss_notify_desc.bEndpointAddress = fs_notify_desc.bEndpointAddress;
 
 		/* copy descriptors, and track endpoint copies */
-		f->ss_descriptors = usb_copy_descriptors(eth_ss_function);
+		if (__use_rndis_class)
+			f->ss_descriptors = usb_copy_descriptors(rndis_ss_function);
+		else
+			f->ss_descriptors = usb_copy_descriptors(eth_ss_function);
 		if (!f->ss_descriptors)
 			goto fail;
 	}
@@ -933,7 +978,7 @@ rndis_bind_config_vendor(struct usb_configuration *c, u8 ethaddr[ETH_ALEN],
 	if (!can_support_rndis(c) || !ethaddr)
 		return -EINVAL;
 		
-	if (rndis_use_ethernet_class) {
+	if (__use_rndis_class) {
 		rndis_control_intf.bInterfaceClass    = 0xEF; /* USB_CLASS_MISC */
 		rndis_control_intf.bInterfaceSubClass = 0x04;
 		rndis_control_intf.bInterfaceProtocol = 0x01;
