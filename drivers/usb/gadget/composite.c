@@ -136,7 +136,7 @@ int config_ep_by_speed(struct usb_gadget *g,
 
 	if (!g || !f || !_ep)
 		return -EIO;
-	PICODBG("g->speed(%d), g->max_speed(%d), USB_SPEED_HIGH(%d), ep->name(%s)\n",
+	PICOVDBG("g->speed(%d), g->max_speed(%d), USB_SPEED_HIGH(%d), ep->name(%s)\n",
 		(int)g->speed, (int)g->max_speed, (int)USB_SPEED_HIGH, _ep->name)
 
 	/* select desired speed */
@@ -161,7 +161,7 @@ int config_ep_by_speed(struct usb_gadget *g,
 	for_each_ep_desc(speed_desc, d_spd) {
 		chosen_desc = (struct usb_endpoint_descriptor *)*d_spd;
 		if (chosen_desc->bEndpointAddress == _ep->address) {
-			PICODBG("chosen_desc(0x%p, bEndpointAddress = %02X), ep->name(%s)\n",
+			PICOVDBG("chosen_desc(0x%p, bEndpointAddress = %02X), ep->name(%s)\n",
 				chosen_desc, (int)chosen_desc->bEndpointAddress, _ep->name)
 			goto ep_found;
 		}

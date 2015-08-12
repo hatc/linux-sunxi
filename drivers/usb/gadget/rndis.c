@@ -67,7 +67,9 @@ static const __le32 rndis_driver_version = cpu_to_le32(1);
 static rndis_resp *rndis_add_response(int configNr, u32 length);
 
 static int rndis_indicate_status_msg(int configNr, u32 status);
+static int rndis_signal_connect_impl(int configNr);
 int rndis_signal_connect(int configNr);
+static int rndis_signal_disconnect_impl(int configNr);
 int rndis_signal_disconnect(int configNr);
 
 /* supported OIDs */
@@ -502,6 +504,7 @@ static int gen_ndis_query_resp(int configNr, u32 OID, u8 *buf, unsigned buf_len,
 static u32 gen_ndis_set_resp(u8 configNr, u32 OID, u8 *buf, u32 buf_len,
 	rndis_resp *r)
 {
+	u32 saved_filter, filter;
 	rndis_set_cmplt_type *resp;
 	rndis_params *params = &rndis_per_dev_params[configNr];
 	
@@ -523,8 +526,14 @@ static u32 gen_ndis_set_resp(u8 configNr, u32 OID, u8 *buf, u32 buf_len,
 		 *	PROMISCUOUS, DIRECTED,
 		 *	MULTICAST, ALL_MULTICAST, BROADCAST
 		 */
+		filter = *params->filter;
+		saved_filter = params->saved_filter;
+		
 		params->saved_filter = get_unaligned_le32(buf);
 		*params->filter = NDIS2CDC_packet_filter(params->saved_filter);
+		
+		PICODBG("saved_filter(%08X), filter(%08X) -> saved_filter(%08X), filter(%08X)\n",
+			saved_filter, filter, params->saved_filter, (u32)*params->filter)
 		
 		pr_debug("%s: OID_GEN_CURRENT_PACKET_FILTER %08x\n", __func__, *params->filter);
 
@@ -768,50 +777,70 @@ static int rndis_indicate_status_msg(int configNr, u32 status)
 }
 
 static char const * RNDIS_STATE_NAMES[] = { "RNDIS_UNINITIALIZED", "RNDIS_INITIALIZED", "RNDIS_DATA_INITIALIZED" };
-int rndis_signal_connect(int configNr)
+static inline char const * get_rndis_state_name(enum rndis_state v) {
+	u32 i = (u32)v;
+	return (i < (u32)arraysize(RNDIS_STATE_NAMES)) ? RNDIS_STATE_NAMES[i] : "<invalid rndis_state>";
+}
+static inline char const * get_ndis_media_state_name(u32 v) {
+	return (NDIS_MEDIA_STATE_CONNECTED == v) ? "NDIS_MEDIA_STATE_CONNECTED" : "NDIS_MEDIA_STATE_DISCONNECTED";
+}
+static int rndis_signal_connect_impl(int configNr)
 {
 	int r;
+	enum rndis_state params_state;
+	u32 params_media_state;
 	rndis_params *params = rndis_per_dev_params + configNr;
-	r = 0;
-	PICODBG("params->state(%s), params->media_state(%s), RNDIS_STATUS_MEDIA_CONNECT request\n",
-		RNDIS_STATE_NAMES[params->state], (NDIS_MEDIA_STATE_CONNECTED == params->media_state) ? "NDIS_MEDIA_STATE_CONNECTED" : "NDIS_MEDIA_STATE_DISCONNECTED");
+	r = -ENOTSUPP;
+	params_state = params->state; params_media_state = params->media_state;
 	
-	params->dev_state_open = 1;
-	if (RNDIS_UNINITIALIZED == params->state) {
+	/* if (RNDIS_UNINITIALIZED == params->state) {
 		PICOWRN("RNDIS_STATUS_MEDIA_CONNECT requested, but params->state == RNDIS_UNINITIALIZED, set dev_state_open(%d) to 1\n",
-			(int)params->dev_state_open)
-	} else if (RNDIS_INITIALIZED == params->state || RNDIS_DATA_INITIALIZED == params->state) {
+			(int)dev_state_open)
+	} else */ if (RNDIS_INITIALIZED == params->state || RNDIS_DATA_INITIALIZED == params->state) {
 		if (NDIS_MEDIA_STATE_CONNECTED != params->media_state) {
 			params->media_state = NDIS_MEDIA_STATE_CONNECTED;
 			r = rndis_indicate_status_msg(configNr, RNDIS_STATUS_MEDIA_CONNECT);
 		}
 	}
 	
-	PICODBG("params->state(%s), params->media_state(%s), r(%d)\n",
-		RNDIS_STATE_NAMES[params->state], (NDIS_MEDIA_STATE_CONNECTED == params->media_state) ? "NDIS_MEDIA_STATE_CONNECTED" : "NDIS_MEDIA_STATE_DISCONNECTED", r);
+	PICODBG("%s, %s, dev_state_open(%d) -> r(%d), %s, %s\n",
+		get_rndis_state_name(params_state), get_ndis_media_state_name(params_media_state), params->dev_state_open,
+		r, get_rndis_state_name(params->state), get_ndis_media_state_name(params->media_state));
 	return r;
 }
+int rndis_signal_connect(int configNr) {
+	rndis_params *params = rndis_per_dev_params + configNr;
+	params->dev_state_open = 1;
+	
+	return rndis_signal_connect_impl(configNr);
+}
 
-int rndis_signal_disconnect(int configNr)
+static int rndis_signal_disconnect_impl(int configNr)
 {
 	int r;
+	enum rndis_state params_state;
+	u32 params_media_state;
 	rndis_params *params = rndis_per_dev_params + configNr;
-	PICODBG("params->state(%s), params->media_state(%s), NDIS_MEDIA_STATE_DISCONNECTED request\n",
-		RNDIS_STATE_NAMES[params->state], (NDIS_MEDIA_STATE_CONNECTED == params->media_state) ? "NDIS_MEDIA_STATE_CONNECTED" : "NDIS_MEDIA_STATE_DISCONNECTED");
+	r = -ENOTSUPP;
+	params_state = params->state; params_media_state = params->media_state;
 	
-	params->dev_state_open = 0;
-	r = 0;
-	if (RNDIS_UNINITIALIZED == params->state) {
+	/* if (RNDIS_UNINITIALIZED == params->state) {
 		PICOWRN("RNDIS_STATUS_MEDIA_DISCONNECT requested, but params->state == RNDIS_UNINITIALIZED\n")
-		r = -ENOTSUPP;
-	} else if (NDIS_MEDIA_STATE_CONNECTED == params->media_state) {
+	} else */ if (NDIS_MEDIA_STATE_CONNECTED == params->media_state) {
 		params->media_state = NDIS_MEDIA_STATE_DISCONNECTED;
 		r = rndis_indicate_status_msg(configNr, RNDIS_STATUS_MEDIA_DISCONNECT);
 	}
 	
-	PICODBG("params->state(%s), params->media_state(%s), r(%d)\n",
-		RNDIS_STATE_NAMES[params->state], (NDIS_MEDIA_STATE_CONNECTED == params->media_state) ? "NDIS_MEDIA_STATE_CONNECTED" : "NDIS_MEDIA_STATE_DISCONNECTED", r);
+	PICODBG("%s, %s, dev_state_open(%d) -> r(%d), %s, %s\n",
+		get_rndis_state_name(params_state), get_ndis_media_state_name(params_media_state), params->dev_state_open,
+		r, get_rndis_state_name(params->state), get_ndis_media_state_name(params->media_state));
 	return r;
+}
+int rndis_signal_disconnect(int configNr) {
+	rndis_params *params = rndis_per_dev_params + configNr;
+	params->dev_state_open = 0;
+	
+	return rndis_signal_disconnect_impl(configNr);
 }
 
 void rndis_uninit(int configNr)
@@ -873,7 +902,7 @@ int rndis_msg_parser(u8 configNr, u8 *buf)
 		params->hw_state = NdisHardwareStatusReady;
 		r = rndis_init_response(configNr, (rndis_init_msg_type *)buf);
 		if (params->dev_state_open && RNDIS_INITIALIZED == params->state)
-			rndis_signal_connect(configNr); /* params->media_state = NDIS_MEDIA_STATE_CONNECTED; */
+			rndis_signal_connect_impl(configNr); /* params->media_state = NDIS_MEDIA_STATE_CONNECTED; */
 		
 	case REMOTE_NDIS_HALT_MSG:
 		PICODBG("REMOTE_NDIS_HALT_MSG, params->dev(0x%p)\n", params->dev)
@@ -897,7 +926,7 @@ int rndis_msg_parser(u8 configNr, u8 *buf)
 			if (RNDIS_INITIALIZED == params->state)
 				rndis_signal_disconnect(configNr); /* params->media_state = NDIS_MEDIA_STATE_DISCONNECTED; */
 			else if (RNDIS_DATA_INITIALIZED == params->state)
-				rndis_signal_connect(configNr); /* params->media_state = NDIS_MEDIA_STATE_CONNECTED; */
+				rndis_signal_connect_impl(configNr); /* params->media_state = NDIS_MEDIA_STATE_CONNECTED; */
 		}
 		// signal state
 
